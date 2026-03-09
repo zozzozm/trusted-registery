@@ -1,0 +1,27 @@
+name: Verify Registry Document
+
+on:
+  push:
+    paths: ['data/registry.json']
+  pull_request:
+    paths: ['data/registry.json']
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Verify registry document signatures
+        env:
+          ADMIN_KEY_0_PUB: ${{ secrets.ADMIN_KEY_0_PUB }}
+          ADMIN_KEY_1_PUB: ${{ secrets.ADMIN_KEY_1_PUB }}
+          ADMIN_KEY_2_PUB: ${{ secrets.ADMIN_KEY_2_PUB }}
+          REGISTRY_ID:     ${{ secrets.REGISTRY_ID || 'dev-custody-v1' }}
+          MIN_SIGNATURES:  '2'
+          REGISTRY_FILE:   './data/registry.json'
+        run: npx ts-node scripts/verify-file.ts
