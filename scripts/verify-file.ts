@@ -28,15 +28,17 @@ function main() {
   }
 
   // Check document hash
-  const { signatures: _, documentHash, ...body } = doc
+  const savedHash = doc.documentHash
+  const { signatures: _, ...body } = doc
+  body.documentHash = ''
   const expected = computeDocumentHash(body)
-  if (expected !== documentHash) {
+  if (expected !== savedHash) {
     console.error(`✗ Document hash mismatch`)
     process.exit(1)
   }
 
   // Check signatures
-  const result = verifyMultiSig(documentHash, doc.signatures, CONFIG.ADMIN_KEYS, CONFIG.MIN_SIGNATURES)
+  const result = verifyMultiSig(savedHash, doc.signatures, CONFIG.ADMIN_KEYS, CONFIG.MIN_SIGNATURES)
   if (!result.valid) {
     console.error(`✗ Signatures invalid: ${result.reason}`)
     process.exit(1)
