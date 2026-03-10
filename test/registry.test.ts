@@ -41,11 +41,16 @@ beforeAll(async () => {
 })
 afterAll(() => app.close())
 
+function adminAddresses(): string[] {
+  return wallets.map(w => w.address)
+}
+
 async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<RegistryDocument> {
   const now = Math.floor(Date.now() / 1000)
   const u: UnsignedDocument = {
     registryId: 'test-registry-v1', version: 1,
     issuedAt: now, expiresAt: now + 3600,
+    adminAddresses: adminAddresses(),
     nodes: [], merkleRoot: computeMerkleRoot([]),
     prevDocumentHash: null, documentHash: '',
     ...overrides,
@@ -66,20 +71,25 @@ describe('Health', () => {
     const r = await request(app.getHttpServer()).get('/api/registry/health')
     expect(r.status).toBe(200)
     expect(r.body.status).toBe('ok')
+    expect(r.body.adminSource).toBe('genesis-env')
   })
 })
 
 describe('Verify — each failure case', () => {
   it('missing fields', async () => {
-    const r = await request(app.getHttpServer()).post('/api/registry/verify').send({ registryId: 'x', version: 1, issuedAt: 1, expiresAt: 1, nodes: [], merkleRoot: 'x', prevDocumentHash: null, documentHash: 'x', signatures: [] })
+    const r = await request(app.getHttpServer()).post('/api/registry/verify').send({
+      registryId: 'x', version: 1, issuedAt: 1, expiresAt: 1,
+      adminAddresses: adminAddresses(),
+      nodes: [], merkleRoot: 'x', prevDocumentHash: null, documentHash: 'x', signatures: []
+    })
     expect(r.status).toBe(200)
   })
   it('expired', async () => {
     const d = await buildDoc({ expiresAt: Math.floor(Date.now()/1000) - 1 })
-    // Rebuild hash with new expiresAt
     const unsigned: UnsignedDocument = {
       registryId: d.registryId, version: d.version,
       issuedAt: d.issuedAt, expiresAt: d.expiresAt,
+      adminAddresses: d.adminAddresses,
       nodes: d.nodes, merkleRoot: d.merkleRoot,
       prevDocumentHash: d.prevDocumentHash, documentHash: '',
     }
@@ -119,9 +129,15 @@ describe('Full publish flow', () => {
     expect(r.status).toBe(200)
     expect(r.body.version).toBe(1)
   })
-  it('current returns v1', async () => {
+  it('current returns v1 with embedded admin addresses', async () => {
     const r = await request(app.getHttpServer()).get('/api/registry/current')
     expect(r.body.version).toBe(1)
+    expect(r.body.adminAddresses).toHaveLength(3)
+    expect(r.body.adminAddresses[0].toLowerCase()).toBe(wallets[0].address.toLowerCase())
+  })
+  it('health shows admin source as document', async () => {
+    const r = await request(app.getHttpServer()).get('/api/registry/health')
+    expect(r.body.adminSource).toBe('document')
   })
   it('enroll proposes a draft', async () => {
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
@@ -131,6 +147,7 @@ describe('Full publish flow', () => {
     expect(r.status).toBe(200)
     expect(r.body.draft.version).toBe(2)
     expect(r.body.draft.nodes.length).toBe(1)
+    expect(r.body.draft.adminAddresses).toEqual(adminAddresses())
   })
   it('sign and publish enrollment', async () => {
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
@@ -149,6 +166,50 @@ describe('Full publish flow', () => {
     const r = await request(app.getHttpServer()).get('/api/registry/nodes')
     expect(r.body.length).toBe(1)
     expect(r.body[0].status).toBe('ACTIVE')
+  })
+})
+
+describe('Admin rotation', () => {
+  it('proposes new admin addresses', async () => {
+    await request(app.getHttpServer()).delete('/api/registry/pending')
+    const newWallet = ethers.Wallet.createRandom()
+    const newAdmins = [wallets[0].address, wallets[1].address, newWallet.address]
+    const r = await request(app.getHttpServer()).post('/api/registry/admins/propose').send({
+      adminAddresses: newAdmins,
+    })
+    expect(r.status).toBe(200)
+    expect(r.body.adminAddresses).toEqual(newAdmins)
+  })
+  it('current admins sign the admin change', async () => {
+    const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
+    const message = buildSignMessage(pending.documentHash)
+    const signed: RegistryDocument = {
+      ...pending,
+      signatures: [
+        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
+        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
+      ]
+    }
+    const r = await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
+    expect(r.status).toBe(200)
+    expect(r.body.version).toBe(3)
+  })
+  it('new admin addresses are now active', async () => {
+    const r = await request(app.getHttpServer()).get('/api/registry/current')
+    expect(r.body.adminAddresses).toHaveLength(3)
+    // wallet[2] is no longer admin, replaced by newWallet
+    expect(r.body.adminAddresses.map((a: string) => a.toLowerCase())).not.toContain(wallets[2].address.toLowerCase())
+  })
+  it('old admin (wallet[2]) can no longer sign', async () => {
+    await request(app.getHttpServer()).delete('/api/registry/pending')
+    await request(app.getHttpServer()).post('/api/registry/pending')
+    const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
+    const sig = await signDocument(pending.documentHash, wallets[2].privateKey)
+    const r = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
+      adminAddress: wallets[2].address, signature: sig,
+    })
+    expect(r.status).toBe(400)
+    await request(app.getHttpServer()).delete('/api/registry/pending')
   })
 })
 
@@ -244,13 +305,11 @@ describe('Security', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/pending')
 
-    // Invalid address format
     const r1 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
       adminAddress: 'not-an-address', signature: '0x' + 'a'.repeat(130),
     })
     expect(r1.status).toBe(400)
 
-    // Missing 0x prefix on address
     const r2 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
       adminAddress: 'a'.repeat(40), signature: '0x' + 'a'.repeat(130),
     })

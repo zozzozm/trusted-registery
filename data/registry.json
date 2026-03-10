@@ -1,33 +1,25 @@
 {
   "registryId": "dev-custody-v1",
-  "version": 2,
-  "issuedAt": 1773178962,
-  "expiresAt": 1773783762,
-  "nodes": [
-    {
-      "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-      "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
-      "role": "PROVIDER_COSIGNER",
-      "walletScope": [
-        "wallet-001",
-        "wallet-002"
-      ],
-      "nodeId": "5936911f34dc736212b8d6619bd1a86d9ed012e49a2dc20364309bb6092b4672",
-      "status": "ACTIVE",
-      "enrolledAt": 1773178986
-    }
+  "version": 1,
+  "issuedAt": 1773182399,
+  "expiresAt": 1773787199,
+  "adminAddresses": [
+    "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
+    "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
+    "0xff6Cb288bFc8D8b8B43c4B59439E4b66dd0e11c4"
   ],
-  "merkleRoot": "e414bf8659195ce1291856652e8dac8478ebae03d6d91b144ba54b97897c3828",
-  "prevDocumentHash": "4116755a7917c1af8d1eec46ffa2d5bb6434a0317500548ce02585868fc28b17",
-  "documentHash": "b8f3b82cd071896fe9431c97a122e9e0a732cc294f5f6ca4509716f25a26dd3a",
+  "nodes": [],
+  "merkleRoot": "2e1cfa82b035c26cbbbdae632cea070514eb8b773f616aaeaf668e2f0be8f10d",
+  "prevDocumentHash": null,
+  "documentHash": "dfdf12a1c66e6aa11fa22fddb1f1bc3c0435e2f52dfe51e97b3251c6c4213d4a",
   "signatures": [
     {
-      "adminAddress": "0xff6Cb288bFc8D8b8B43c4B59439E4b66dd0e11c4",
-      "signature": "0xbd30d249901ef564506922a2517bb3364375bd394c1b43b45ee60eb8f13227aa7b63a3b152e74cb584e42cfc0c1c1c6d7cab632c04fb44dbc8e87505a43d62971c"
+      "adminAddress": "0xD9326707b2aeEc9f9155828A0904894912367466",
+      "signature": "0x8ad3cb03b8f722ecbcea3f5d6aeb68b1bfaf2de288dc37a6a41f52940446ed8730fbae52e1fca642f285d19df5e766245f7bd35c008703f9aefb64cddebe2aad1b"
     },
     {
       "adminAddress": "0x131A53611d8a9b2b20d44304be222fF9c64A3ab0",
-      "signature": "0x9ed058826714cfceec2e94f072c5ce615d76935cfd377e3080e948a270309e01553ce562ab648b67caf82aa17948137256366184a003df7285f2cd4b9abb3f681c"
+      "signature": "0x6afb2981b89b89c36286140bca19e33693550949a1a95714152d0332569ff34514533a81f5684e7dfed2b3a390ac81e3fdef26ebeea441644112891ae3d943321b"
     }
   ]
 }

@@ -6,9 +6,10 @@
 import { Injectable, OnModuleInit, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common'
 import { readFileSync, writeFileSync, mkdirSync, renameSync, appendFileSync } from 'fs'
 import { dirname, resolve } from 'path'
+import { ethers } from 'ethers'
 import {
   RegistryDocument, UnsignedDocument, NodeRecord, AdminSignature,
-  NodeRole, VerifyResult
+  NodeRole
 } from '../common/types'
 import {
   computeDocumentHash, computeMerkleRoot, verifyMultiSig,
@@ -27,6 +28,18 @@ export class RegistryService implements OnModuleInit {
 
   onModuleInit() {
     this.loadFromDisk()
+  }
+
+  /**
+   * Returns the current admin addresses.
+   * If a document is published, uses its adminAddresses.
+   * Otherwise falls back to genesis env vars.
+   */
+  getActiveAdminAddresses(): string[] {
+    if (this.currentDoc?.adminAddresses?.length) {
+      return this.currentDoc.adminAddresses
+    }
+    return CONFIG.GENESIS_ADMIN_ADDRESSES
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -66,8 +79,8 @@ export class RegistryService implements OnModuleInit {
       throw new ConflictException('documentHash does not match the current draft. The draft may have been modified.')
     }
 
-    // Validate adminAddress is a known admin
-    const adminAddresses = CONFIG.ADMIN_ADDRESSES
+    // Signatures must come from the CURRENT admins (not the draft's proposed admins)
+    const adminAddresses = this.getActiveAdminAddresses()
     const isKnownAdmin = adminAddresses.some(a => a.toLowerCase() === adminAddress.toLowerCase())
     if (!isKnownAdmin) throw new BadRequestException(`Unknown admin address: ${adminAddress}`)
 
@@ -93,6 +106,43 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
+  /** POST /registry/admins/propose — propose new admin addresses for the next version */
+  proposeAdminChange(body: { adminAddresses: string[] }): RegistryDocument {
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
+    // Validate addresses
+    const addresses = body.adminAddresses.map(a => {
+      try { return ethers.getAddress(a) }
+      catch { throw new BadRequestException(`Invalid Ethereum address: ${a}`) }
+    })
+
+    if (addresses.length < CONFIG.MIN_SIGNATURES) {
+      throw new BadRequestException(`Need at least ${CONFIG.MIN_SIGNATURES} admin addresses`)
+    }
+
+    // Check for duplicates
+    const unique = new Set(addresses.map(a => a.toLowerCase()))
+    if (unique.size !== addresses.length) {
+      throw new BadRequestException('Duplicate admin addresses')
+    }
+
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    // Update admin addresses and refresh hash
+    this.stagedDraft.adminAddresses = addresses
+    this._refreshDraftHash()
+
+    this.audit('ADMIN_CHANGE_PROPOSED', { newAdmins: addresses })
+    return this.stagedDraft
+  }
+
   /** GET /registry/node/:nodeId */
   getNode(nodeId: string): NodeRecord {
     const node = this.currentDoc?.nodes.find(n => n.nodeId === nodeId)
@@ -113,6 +163,7 @@ export class RegistryService implements OnModuleInit {
   /** GET /registry/health */
   getHealth() {
     const doc = this.currentDoc
+    const admins = this.getActiveAdminAddresses()
     return {
       status:      'ok',
       registryId:  CONFIG.REGISTRY_ID,
@@ -121,10 +172,11 @@ export class RegistryService implements OnModuleInit {
       activeNodes: doc?.nodes.filter(n => n.status === 'ACTIVE').length ?? 0,
       expiresAt:   doc?.expiresAt ?? null,
       expired:     doc ? Math.floor(Date.now() / 1000) > doc.expiresAt : null,
-      adminAddresses: CONFIG.ADMIN_ADDRESSES.map((a, i) => ({
+      adminAddresses: admins.map((a, i) => ({
         index:   i,
         address: a,
       })),
+      adminSource: doc?.adminAddresses?.length ? 'document' : 'genesis-env',
     }
   }
 
@@ -144,8 +196,8 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const required = ['registryId','version','issuedAt','expiresAt','nodes','merkleRoot','prevDocumentHash','documentHash']
-    const missing  = required.filter(f => doc[f] === undefined)
+    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash']
+    const missing  = requiredFields.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
       return { valid: false, steps }
@@ -174,6 +226,7 @@ export class RegistryService implements OnModuleInit {
       version:          doc.version,
       issuedAt:         doc.issuedAt,
       expiresAt:        doc.expiresAt,
+      adminAddresses:   doc.adminAddresses,
       nodes:            doc.nodes,
       merkleRoot:       doc.merkleRoot,
       prevDocumentHash: doc.prevDocumentHash,
@@ -210,10 +263,12 @@ export class RegistryService implements OnModuleInit {
     }
 
     // Step 7 — Multi-signature verification
+    // Signatures must be from the CURRENT admins (who authorize the new version)
+    const signingAdmins = this.getActiveAdminAddresses()
     const sigResult = verifyMultiSig(
       doc.documentHash,
       doc.signatures,
-      CONFIG.ADMIN_ADDRESSES,
+      signingAdmins,
       CONFIG.MIN_SIGNATURES
     )
     if (!sigResult.valid) {
@@ -221,6 +276,21 @@ export class RegistryService implements OnModuleInit {
     } else {
       const signers = (doc.signatures as AdminSignature[]).map(s => s.adminAddress.substring(0, 10) + '...').join(', ')
       pass('signatures', `${doc.signatures.length} valid signatures from: ${signers}`)
+    }
+
+    // Step 8 — Admin addresses validation
+    if (!Array.isArray(doc.adminAddresses) || doc.adminAddresses.length < CONFIG.MIN_SIGNATURES) {
+      fail('adminAddresses', `Need at least ${CONFIG.MIN_SIGNATURES} admin addresses, got ${doc.adminAddresses?.length ?? 0}`)
+    } else {
+      const adminChanged = this.currentDoc
+        ? JSON.stringify(doc.adminAddresses.map((a: string) => a.toLowerCase()).sort())
+          !== JSON.stringify(this.currentDoc.adminAddresses.map((a: string) => a.toLowerCase()).sort())
+        : false
+      if (adminChanged) {
+        pass('adminAddresses', `Admin rotation: ${doc.adminAddresses.length} new admins proposed`)
+      } else {
+        pass('adminAddresses', `${doc.adminAddresses.length} admin addresses (unchanged)`)
+      }
     }
 
     const allPassed = steps.every(s => s.passed)
@@ -329,6 +399,7 @@ export class RegistryService implements OnModuleInit {
       version:          doc.version,
       issuedAt:         doc.issuedAt,
       expiresAt:        doc.expiresAt,
+      adminAddresses:   doc.adminAddresses,
       nodes:            doc.nodes,
       merkleRoot:       doc.merkleRoot,
       prevDocumentHash: doc.prevDocumentHash,
@@ -341,7 +412,7 @@ export class RegistryService implements OnModuleInit {
     this.stagedDraft = null
     this.draftLocked = false
     this.saveToDisk()
-    this.audit('DOCUMENT_PUBLISHED', { version: doc.version, nodes: doc.nodes.length })
+    this.audit('DOCUMENT_PUBLISHED', { version: doc.version, nodes: doc.nodes.length, admins: doc.adminAddresses.length })
 
     return { published: true, version: doc.version }
   }
@@ -365,11 +436,14 @@ export class RegistryService implements OnModuleInit {
     const sorted  = [...nodes].sort((a, b) => a.nodeId.localeCompare(b.nodeId))
     const now     = Math.floor(Date.now() / 1000)
     const nextV   = (this.currentDoc?.version ?? 0) + 1
+    // Carry forward current admin addresses, or use genesis
+    const admins  = this.getActiveAdminAddresses()
     const draft: UnsignedDocument = {
       registryId:       CONFIG.REGISTRY_ID,
       version:          nextV,
       issuedAt:         now,
       expiresAt:        now + CONFIG.EXPIRY_SECONDS,
+      adminAddresses:   admins,
       nodes:            sorted,
       merkleRoot:       computeMerkleRoot(sorted),
       prevDocumentHash: this.currentDoc?.documentHash ?? null,

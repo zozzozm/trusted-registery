@@ -1,5 +1,6 @@
 export { EnrollNodeDto } from './enroll-node.dto'
 export { RevokeNodeDto } from './revoke-node.dto'
 export { SignPendingDto } from './sign-pending.dto'
+export { ProposeAdminsDto } from './propose-admins.dto'
 export { VerifyDocumentDto } from './verify-document.dto'
 export { PublishDocumentDto } from './publish-document.dto'
