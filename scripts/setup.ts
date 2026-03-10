@@ -5,7 +5,8 @@
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import { computeDocumentHash, computeMerkleRoot, signHex } from '../src/common/crypto'
+import { ethers } from 'ethers'
+import { computeDocumentHash, computeMerkleRoot, buildSignMessage } from '../src/common/crypto'
 import { UnsignedDocument, RegistryDocument } from '../src/common/types'
 import { CONFIG } from '../src/common/config'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
@@ -15,8 +16,8 @@ async function main() {
   console.log('\n=== MPC Registry Setup — Genesis Document ===\n')
 
   // Validate private keys exist
-  if (!CONFIG.DEV_ADMIN_KEY_0_PRIV || !CONFIG.DEV_ADMIN_KEY_1_PRIV) {
-    console.error('ERROR: DEV_ADMIN_KEY_0_PRIV and DEV_ADMIN_KEY_1_PRIV must be set in .env')
+  if (!CONFIG.DEV_ADMIN_PRIVKEY_0 || !CONFIG.DEV_ADMIN_PRIVKEY_1) {
+    console.error('ERROR: DEV_ADMIN_PRIVKEY_0 and DEV_ADMIN_PRIVKEY_1 must be set in .env')
     console.error('       Run: npm run keygen')
     process.exit(1)
   }
@@ -42,21 +43,26 @@ async function main() {
   console.log(`  documentHash: ${unsigned.documentHash}`)
   console.log()
 
+  const message = buildSignMessage(unsigned.documentHash)
+
   // Sign with admin 0 and admin 1 (2-of-3 threshold met)
-  console.log('Signing with admin 0...')
-  const sig0 = await signHex(unsigned.documentHash, CONFIG.DEV_ADMIN_KEY_0_PRIV)
+  const wallet0 = new ethers.Wallet(CONFIG.DEV_ADMIN_PRIVKEY_0)
+  const wallet1 = new ethers.Wallet(CONFIG.DEV_ADMIN_PRIVKEY_1)
+
+  console.log(`Signing with admin 0 (${wallet0.address})...`)
+  const sig0 = await wallet0.signMessage(message)
   console.log(`  signature: ${sig0.substring(0, 32)}...`)
 
-  console.log('Signing with admin 1...')
-  const sig1 = await signHex(unsigned.documentHash, CONFIG.DEV_ADMIN_KEY_1_PRIV)
+  console.log(`Signing with admin 1 (${wallet1.address})...`)
+  const sig1 = await wallet1.signMessage(message)
   console.log(`  signature: ${sig1.substring(0, 32)}...`)
 
   // Assemble the final signed document
   const signed: RegistryDocument = {
     ...unsigned,
     signatures: [
-      { adminIndex: 0, signature: sig0 },
-      { adminIndex: 1, signature: sig1 },
+      { adminAddress: wallet0.address, signature: sig0 },
+      { adminAddress: wallet1.address, signature: sig1 },
     ]
   }
 
@@ -65,11 +71,11 @@ async function main() {
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
   writeFileSync(CONFIG.REGISTRY_FILE, JSON.stringify(signed, null, 2))
 
-  console.log(`\n✓ Genesis document saved to ${CONFIG.REGISTRY_FILE}`)
+  console.log(`\nGenesis document saved to ${CONFIG.REGISTRY_FILE}`)
   console.log(`\n=== NEXT STEPS ===`)
   console.log(`1. Start the server:    npm run start:dev`)
   console.log(`2. Check health:        curl http://localhost:3000/api/registry/health`)
-  console.log(`3. Read the guide:      cat TESTING.md`)
+  console.log(`3. Open signing page:   http://localhost:3000/sign.html`)
   console.log()
 }
 

@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MPC Registry — Admin Signer</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.5rem; }
+    .subtitle { color: #8b949e; margin-bottom: 2rem; font-size: 0.9rem; }
+    .step { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .step h2 { color: #58a6ff; font-size: 1rem; margin-bottom: 0.75rem; }
+    .step.done { border-color: #238636; }
+    .step.error { border-color: #da3633; }
+    button { background: #238636; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-family: inherit; }
+    button:hover { background: #2ea043; }
+    button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+    .info { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; margin-top: 0.75rem; font-size: 0.85rem; word-break: break-all; }
+    .info label { color: #8b949e; display: block; margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase; }
+    .info .value { color: #c9d1d9; }
+    .success { color: #3fb950; }
+    .error-text { color: #f85149; }
+    .warning { color: #d29922; }
+    .sig-list { margin-top: 0.5rem; }
+    .sig-item { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; }
+    .sig-item .addr { color: #58a6ff; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-left: 0.5rem; }
+    .badge-ok { background: #238636; color: #fff; }
+    .badge-pending { background: #9e6a03; color: #fff; }
+    #status-bar { position: fixed; top: 0; left: 0; right: 0; padding: 0.5rem 2rem; font-size: 0.8rem; text-align: center; z-index: 10; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <h1>MPC Registry Admin Signer</h1>
+  <p class="subtitle">Connect your MetaMask wallet to sign pending registry documents</p>
+
+  <!-- Step 1: Connect Wallet -->
+  <div class="step" id="step-connect">
+    <h2>1. Connect Wallet</h2>
+    <button id="btn-connect" onclick="connectWallet()">Connect MetaMask</button>
+    <div id="wallet-info" class="info hidden">
+      <label>Connected Address</label>
+      <div class="value" id="wallet-address"></div>
+      <div id="admin-status" style="margin-top: 0.5rem;"></div>
+    </div>
+  </div>
+
+  <!-- Step 2: Fetch Pending Draft -->
+  <div class="step" id="step-draft">
+    <h2>2. Pending Draft</h2>
+    <button id="btn-fetch" onclick="fetchDraft()" disabled>Fetch Pending Draft</button>
+    <div id="draft-info" class="info hidden">
+      <label>Registry ID</label>
+      <div class="value" id="draft-registry"></div>
+      <label style="margin-top: 0.5rem;">Version</label>
+      <div class="value" id="draft-version"></div>
+      <label style="margin-top: 0.5rem;">Nodes</label>
+      <div class="value" id="draft-nodes"></div>
+      <label style="margin-top: 0.5rem;">Document Hash</label>
+      <div class="value" id="draft-hash" style="font-family: monospace; font-size: 0.8rem;"></div>
+      <label style="margin-top: 0.5rem;">Merkle Root</label>
+      <div class="value" id="draft-merkle" style="font-family: monospace; font-size: 0.8rem;"></div>
+    </div>
+  </div>
+
+  <!-- Step 3: Sign -->
+  <div class="step" id="step-sign">
+    <h2>3. Sign Document</h2>
+    <p style="font-size: 0.85rem; color: #8b949e; margin-bottom: 0.75rem;">
+      MetaMask will display the message to sign. Verify the document hash matches before approving.
+    </p>
+    <button id="btn-sign" onclick="signDocument()" disabled>Sign with MetaMask</button>
+    <div id="sign-info" class="info hidden">
+      <label>Signature</label>
+      <div class="value" id="sign-result" style="font-family: monospace; font-size: 0.8rem;"></div>
+    </div>
+  </div>
+
+  <!-- Step 4: Submit -->
+  <div class="step" id="step-submit">
+    <h2>4. Submit Signature</h2>
+    <button id="btn-submit" onclick="submitSignature()" disabled>Submit to Server</button>
+    <div id="submit-info" class="info hidden">
+      <div id="submit-result"></div>
+    </div>
+  </div>
+
+  <!-- Signature Status -->
+  <div class="step" id="step-status">
+    <h2>Signature Status</h2>
+    <div id="sig-status">
+      <span class="warning">No draft loaded</span>
+    </div>
+    <div id="sig-list" class="sig-list"></div>
+  </div>
+
+  <script>
+    const API = '/api/registry'
+    let account = null
+    let draft = null
+    let signature = null
+    let adminAddresses = []
+
+    async function connectWallet() {
+      if (!window.ethereum) {
+        alert('MetaMask is not installed. Please install it from metamask.io')
+        return
+      }
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+        account = accounts[0]
+        document.getElementById('wallet-address').textContent = account
+        document.getElementById('wallet-info').classList.remove('hidden')
+        document.getElementById('step-connect').classList.add('done')
+        document.getElementById('btn-connect').disabled = true
+
+        // Fetch health to check if this is a known admin
+        const health = await fetch(`${API}/health`).then(r => r.json())
+        adminAddresses = health.adminAddresses.map(a => a.address.toLowerCase())
+        const isAdmin = adminAddresses.includes(account.toLowerCase())
+        const statusEl = document.getElementById('admin-status')
+        if (isAdmin) {
+          statusEl.innerHTML = '<span class="success">Known admin address</span>'
+        } else {
+          statusEl.innerHTML = '<span class="error-text">Not a recognized admin address</span>'
+        }
+
+        document.getElementById('btn-fetch').disabled = false
+
+        // Listen for account changes
+        window.ethereum.on('accountsChanged', (accs) => {
+          if (accs.length === 0) {
+            location.reload()
+          } else {
+            account = accs[0]
+            document.getElementById('wallet-address').textContent = account
+            const isAdmin = adminAddresses.includes(account.toLowerCase())
+            statusEl.innerHTML = isAdmin
+              ? '<span class="success">Known admin address</span>'
+              : '<span class="error-text">Not a recognized admin address</span>'
+          }
+        })
+      } catch (e) {
+        alert('Failed to connect: ' + e.message)
+      }
+    }
+
+    async function fetchDraft() {
+      try {
+        const res = await fetch(`${API}/pending`)
+        if (!res.ok) {
+          const err = await res.json()
+          alert('Failed to fetch draft: ' + (err.message || res.statusText))
+          return
+        }
+        draft = await res.json()
+        document.getElementById('draft-registry').textContent = draft.registryId
+        document.getElementById('draft-version').textContent = 'v' + draft.version
+        document.getElementById('draft-nodes').textContent = draft.nodes.length + ' node(s)'
+        document.getElementById('draft-hash').textContent = draft.documentHash
+        document.getElementById('draft-merkle').textContent = draft.merkleRoot
+        document.getElementById('draft-info').classList.remove('hidden')
+        document.getElementById('step-draft').classList.add('done')
+        document.getElementById('btn-sign').disabled = false
+
+        updateSigStatus()
+      } catch (e) {
+        alert('Error: ' + e.message)
+      }
+    }
+
+    async function signDocument() {
+      if (!account || !draft) return
+      try {
+        const message = `MPC Registry Sign\ndocumentHash:${draft.documentHash}`
+        // personal_sign expects hex-encoded message
+        const hexMessage = '0x' + Array.from(new TextEncoder().encode(message))
+          .map(b => b.toString(16).padStart(2, '0')).join('')
+
+        signature = await window.ethereum.request({
+          method: 'personal_sign',
+          params: [hexMessage, account],
+        })
+
+        document.getElementById('sign-result').textContent = signature
+        document.getElementById('sign-info').classList.remove('hidden')
+        document.getElementById('step-sign').classList.add('done')
+        document.getElementById('btn-submit').disabled = false
+      } catch (e) {
+        alert('Signing failed: ' + e.message)
+      }
+    }
+
+    async function submitSignature() {
+      if (!signature || !draft || !account) return
+      try {
+        const res = await fetch(`${API}/pending/sign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            adminAddress: account,
+            signature: signature,
+            documentHash: draft.documentHash,
+          }),
+        })
+        const result = await res.json()
+        const resultEl = document.getElementById('submit-result')
+        document.getElementById('submit-info').classList.remove('hidden')
+
+        if (res.ok) {
+          draft = result
+          resultEl.innerHTML = '<span class="success">Signature accepted!</span>'
+          document.getElementById('step-submit').classList.add('done')
+          document.getElementById('btn-submit').disabled = true
+          document.getElementById('btn-sign').disabled = true
+          updateSigStatus()
+        } else {
+          resultEl.innerHTML = '<span class="error-text">Rejected: ' + (result.message || 'Unknown error') + '</span>'
+          document.getElementById('step-submit').classList.add('error')
+        }
+      } catch (e) {
+        alert('Submit failed: ' + e.message)
+      }
+    }
+
+    function updateSigStatus() {
+      if (!draft) return
+      const statusEl = document.getElementById('sig-status')
+      const listEl = document.getElementById('sig-list')
+      const count = draft.signatures.length
+      const needed = 2 // MIN_SIGNATURES
+
+      if (count >= needed) {
+        statusEl.innerHTML = `<span class="success">${count}/${needed} signatures — ready to publish!</span>`
+      } else {
+        statusEl.innerHTML = `<span class="warning">${count}/${needed} signatures — ${needed - count} more needed</span>`
+      }
+
+      listEl.innerHTML = draft.signatures.map(s =>
+        `<div class="sig-item">
+          <span class="addr">${s.adminAddress}</span>
+          <span class="badge badge-ok">signed</span>
+          <div style="margin-top: 0.25rem; color: #8b949e; font-size: 0.75rem;">${s.signature.substring(0, 42)}...</div>
+        </div>`
+      ).join('')
+    }
+  </script>
+</body>
+</html>

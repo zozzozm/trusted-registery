@@ -1,12 +1,10 @@
-import { IsInt, Min, Max, Matches, IsOptional, IsString } from 'class-validator'
+import { Matches, IsOptional, IsString } from 'class-validator'
 
 export class SignPendingDto {
-  @IsInt()
-  @Min(0)
-  @Max(2)
-  adminIndex: number
+  @Matches(/^0x[0-9a-fA-F]{40}$/, { message: 'adminAddress must be a valid Ethereum address' })
+  adminAddress: string
 
-  @Matches(/^[0-9a-f]{128}$/, { message: 'Signature must be 128 hex chars (64 bytes)' })
+  @Matches(/^0x[0-9a-f]{130}$/i, { message: 'Signature must be 65 bytes hex (0x-prefixed)' })
   signature: string
 
   @IsOptional()

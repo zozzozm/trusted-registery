@@ -1,14 +1,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Cryptographic helpers — Ed25519 signatures + SHA256 hashing
+// Cryptographic helpers — Ethereum ECDSA signatures + SHA256 hashing
 // ─────────────────────────────────────────────────────────────────────────────
 
-import * as ed from '@noble/ed25519'
-import { sha512 } from '@noble/hashes/sha512'
+import { ethers } from 'ethers'
 import { createHash } from 'crypto'
-import { RegistryDocument, UnsignedDocument, AdminSignature, VerifyResult } from './types'
-
-// noble/ed25519 v2 requires a SHA-512 implementation
-ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m))
+import { UnsignedDocument, AdminSignature, VerifyResult } from './types'
 
 // ── Hashing ───────────────────────────────────────────────────────────────────
 
@@ -62,39 +58,43 @@ function buildMerkleTree(leaves: string[]): string[] {
   return buildMerkleTree(next)
 }
 
-// ── Ed25519 signatures ────────────────────────────────────────────────────────
+// ── Ethereum EIP-191 signatures ──────────────────────────────────────────────
 
-export async function signHex(messageHex: string, privKeyHex: string): Promise<string> {
-  const sig = await ed.sign(
-    Buffer.from(messageHex, 'hex'),
-    Buffer.from(privKeyHex, 'hex')
-  )
-  return Buffer.from(sig).toString('hex')
+/**
+ * Build the human-readable message that wallets will display when signing.
+ * Uses EIP-191 personal_sign format.
+ */
+export function buildSignMessage(documentHash: string): string {
+  return `MPC Registry Sign\ndocumentHash:${documentHash}`
 }
 
-export function verifyHex(
-  messageHex: string,
-  signatureHex: string,
-  pubKeyHex: string
-): boolean {
+/**
+ * Sign a documentHash using an ethers Wallet (for CLI / testing).
+ * Produces the same signature format as MetaMask personal_sign.
+ */
+export async function signDocument(documentHash: string, privateKey: string): Promise<string> {
+  const wallet = new ethers.Wallet(privateKey)
+  const message = buildSignMessage(documentHash)
+  return wallet.signMessage(message)
+}
+
+/**
+ * Recover the signer's Ethereum address from a personal_sign signature.
+ */
+export function recoverSigner(documentHash: string, signature: string): string {
+  const message = buildSignMessage(documentHash)
+  return ethers.verifyMessage(message, signature)
+}
+
+/**
+ * Verify a single signature against an expected admin address.
+ */
+export function verifySingleSig(documentHash: string, signature: string, expectedAddress: string): boolean {
   try {
-    return ed.verify(
-      Buffer.from(signatureHex, 'hex'),
-      Buffer.from(messageHex, 'hex'),
-      Buffer.from(pubKeyHex, 'hex')
-    )
+    const recovered = recoverSigner(documentHash, signature)
+    return recovered.toLowerCase() === expectedAddress.toLowerCase()
   } catch {
     return false
-  }
-}
-
-export async function generateKeypair(): Promise<{ privKey: string; pubKey: string }> {
-  const { randomBytes } = await import('crypto')
-  const privKey = randomBytes(32)
-  const pubKey  = await ed.getPublicKey(privKey)
-  return {
-    privKey: Buffer.from(privKey).toString('hex'),
-    pubKey:  Buffer.from(pubKey).toString('hex'),
   }
 }
 
@@ -107,39 +107,38 @@ export function deriveNodeId(ikPub: string, role: string, enrolledAt: number): s
 export function verifyMultiSig(
   documentHash: string,
   signatures: AdminSignature[],
-  adminPubKeys: string[],   // hardcoded in node binary
+  adminAddresses: string[],
   required: number
 ): VerifyResult {
 
   if (!signatures || signatures.length < required) {
-    return { valid: false, reason: `Need ≥${required} signatures, got ${signatures?.length ?? 0}` }
+    return { valid: false, reason: `Need >= ${required} signatures, got ${signatures?.length ?? 0}` }
   }
 
-  const seen = new Set<number>()
+  const adminSet = new Set(adminAddresses.map(a => a.toLowerCase()))
+  const seen = new Set<string>()
   let validCount = 0
 
   for (const sig of signatures) {
-    // No duplicate admin indices
-    if (seen.has(sig.adminIndex)) {
-      return { valid: false, reason: `Duplicate adminIndex ${sig.adminIndex}` }
-    }
-    seen.add(sig.adminIndex)
+    const addr = sig.adminAddress.toLowerCase()
 
-    // Valid admin index
-    const pubKey = adminPubKeys[sig.adminIndex]
-    if (!pubKey) {
-      return { valid: false, reason: `Unknown adminIndex: ${sig.adminIndex}` }
+    if (seen.has(addr)) {
+      return { valid: false, reason: `Duplicate admin address ${sig.adminAddress}` }
     }
+    seen.add(addr)
 
-    // Valid signature format
-    if (!/^[0-9a-f]{128}$/i.test(sig.signature)) {
-      return { valid: false, reason: `Malformed signature at adminIndex ${sig.adminIndex}` }
+    if (!adminSet.has(addr)) {
+      return { valid: false, reason: `Unknown admin address: ${sig.adminAddress}` }
     }
 
-    // Cryptographic verification
-    const ok = verifyHex(documentHash, sig.signature, pubKey)
+    // Signature format: 0x-prefixed 65-byte hex = 132 chars
+    if (!/^0x[0-9a-f]{130}$/i.test(sig.signature)) {
+      return { valid: false, reason: `Malformed signature from ${sig.adminAddress}` }
+    }
+
+    const ok = verifySingleSig(documentHash, sig.signature, sig.adminAddress)
     if (!ok) {
-      return { valid: false, reason: `Invalid signature at adminIndex ${sig.adminIndex}` }
+      return { valid: false, reason: `Invalid signature from ${sig.adminAddress}` }
     }
     validCount++
   }

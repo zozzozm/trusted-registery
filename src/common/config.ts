@@ -1,14 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Configuration — admin public keys are the TRUST ROOT of the system
+// Configuration — admin Ethereum addresses are the TRUST ROOT of the system
 //
 // In production: these are hardcoded in every MPC node binary.
 // In development: loaded from environment variables.
 //
 // The private keys NEVER touch this server.
-// They live on hardware security keys (YubiKey / Ledger).
+// They live in hardware wallets (MetaMask / Ledger / Trezor).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as dotenv from 'dotenv'
+import { ethers } from 'ethers'
 dotenv.config()
 
 function required(key: string): string {
@@ -30,28 +31,25 @@ export const CONFIG = {
   REGISTRY_ID:      optional('REGISTRY_ID', 'dev-custody-v1'),
   EXPIRY_SECONDS:   parseInt(optional('EXPIRY_SECONDS', String(30 * 24 * 3600))),
 
-  // ── Admin public keys (TRUST ROOT) ───────────────────────────────────────
-  // These are Ed25519 public keys — safe to store anywhere.
-  // The admin who runs `npm run keygen` produces these.
-  get ADMIN_KEYS(): string[] {
+  // ── Admin Ethereum addresses (TRUST ROOT) ─────────────────────────────────
+  // These are checksummed Ethereum addresses — safe to store anywhere.
+  get ADMIN_ADDRESSES(): string[] {
     return [
-      required('ADMIN_KEY_0_PUB'),
-      required('ADMIN_KEY_1_PUB'),
-      required('ADMIN_KEY_2_PUB'),
-    ]
+      required('ADMIN_ADDRESS_0'),
+      required('ADMIN_ADDRESS_1'),
+      required('ADMIN_ADDRESS_2'),
+    ].map(a => ethers.getAddress(a))
   },
 
   // Minimum number of valid admin signatures to accept a document
   MIN_SIGNATURES: Math.max(2, parseInt(optional('MIN_SIGNATURES', '2')) || 2),
 
   // ── Dev-only: private keys for the sign script ────────────────────────────
-  // NEVER set these in production. On prod, signing happens on hardware keys.
-  DEV_ADMIN_KEY_0_PRIV: optional('DEV_ADMIN_KEY_0_PRIV', ''),
-  DEV_ADMIN_KEY_1_PRIV: optional('DEV_ADMIN_KEY_1_PRIV', ''),
-  DEV_ADMIN_KEY_2_PRIV: optional('DEV_ADMIN_KEY_2_PRIV', ''),
+  // NEVER set these in production. On prod, signing happens via MetaMask/Ledger.
+  DEV_ADMIN_PRIVKEY_0: optional('DEV_ADMIN_PRIVKEY_0', ''),
+  DEV_ADMIN_PRIVKEY_1: optional('DEV_ADMIN_PRIVKEY_1', ''),
+  DEV_ADMIN_PRIVKEY_2: optional('DEV_ADMIN_PRIVKEY_2', ''),
 
   // ── Registry storage path ─────────────────────────────────────────────────
-  // In production: this is your GitHub repo path / IPFS content
-  // In development: a local JSON file
   REGISTRY_FILE: optional('REGISTRY_FILE', './data/registry.json'),
 }
