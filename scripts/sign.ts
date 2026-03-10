@@ -15,7 +15,7 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 
 import { ethers } from 'ethers'
-import { buildSignMessage, verifySingleSig } from '../src/common/crypto'
+import { signDocument, verifySingleSig } from '../src/common/crypto'
 import { CONFIG } from '../src/common/config'
 import { writeFileSync, readFileSync, existsSync } from 'fs'
 
@@ -59,13 +59,13 @@ async function main() {
   console.log(`Nodes:         ${draft.nodes?.length ?? 0}`)
   console.log()
 
-  // Sign the documentHash using EIP-191 personal_sign
-  const message = buildSignMessage(draft.documentHash)
-  const sig = await wallet.signMessage(message)
+  // Sign the document using EIP-712 typed data (full document details shown in MetaMask)
+  const { signatures: _sigs, ...unsignedDraft } = draft
+  const sig = await signDocument(unsignedDraft, privKey)
   console.log(`Signature:  ${sig.substring(0,32)}...`)
 
   // Self-verify
-  const ok = verifySingleSig(draft.documentHash, sig, wallet.address)
+  const ok = verifySingleSig(unsignedDraft, sig, wallet.address)
   console.log(`Self-verify: ${ok ? 'passed' : 'FAILED'}`)
   if (!ok) { console.error('Signature failed self-verification!'); process.exit(1) }
 

@@ -13,7 +13,7 @@ import {
 } from '../common/types'
 import {
   computeDocumentHash, computeMerkleRoot, verifyMultiSig,
-  verifySingleSig, deriveNodeId
+  verifySingleSig, deriveNodeId, getEIP712Payload
 } from '../common/crypto'
 import { CONFIG } from '../common/config'
 
@@ -68,6 +68,13 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
+  /** GET /registry/pending/message — returns the EIP-712 typed data payload for signing */
+  getPendingSignPayload(): object {
+    if (!this.stagedDraft) throw new NotFoundException('No pending document.')
+    const { signatures: _, ...unsigned } = this.stagedDraft
+    return getEIP712Payload(unsigned)
+  }
+
   /** POST /registry/pending/sign — add one admin signature to the staged draft */
   signPendingDocument(body: { adminAddress: string; signature: string; documentHash?: string }): RegistryDocument {
     if (!this.stagedDraft) throw new NotFoundException('No pending document. Call GET /registry/pending first.')
@@ -94,8 +101,9 @@ export class RegistryService implements OnModuleInit {
       throw new BadRequestException('Signature must be 0x-prefixed 65 bytes hex (132 chars)')
     }
 
-    // Verify signature against documentHash using ecrecover
-    const ok = verifySingleSig(this.stagedDraft.documentHash, signature, adminAddress)
+    // Verify signature against full document using ecrecover
+    const { signatures: _sigs, ...unsignedDraft } = this.stagedDraft
+    const ok = verifySingleSig(unsignedDraft, signature, adminAddress)
     if (!ok) throw new BadRequestException('Signature verification failed')
 
     this.stagedDraft.signatures.push({ adminAddress, signature })
@@ -265,8 +273,9 @@ export class RegistryService implements OnModuleInit {
     // Step 7 — Multi-signature verification
     // Signatures must be from the CURRENT admins (who authorize the new version)
     const signingAdmins = this.getActiveAdminAddresses()
+    const docForSig = { ...unsignedClean, documentHash: doc.documentHash }
     const sigResult = verifyMultiSig(
-      doc.documentHash,
+      docForSig,
       doc.signatures,
       signingAdmins,
       CONFIG.MIN_SIGNATURES

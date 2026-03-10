@@ -12,7 +12,8 @@
       "Bash(export PATH=\"$HOME/.nvm/versions/node/v25.0.0/bin:$PATH\" && node --version && npm run test 2>&1)",
       "Bash(export PATH=\"$HOME/.nvm/versions/node/v25.0.0/bin:$PATH\" && npm install @nestjs/throttler 2>&1)",
       "Bash(sudo chown:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

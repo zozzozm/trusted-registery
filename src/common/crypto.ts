@@ -4,7 +4,7 @@
 
 import { ethers } from 'ethers'
 import { createHash } from 'crypto'
-import { UnsignedDocument, AdminSignature, VerifyResult } from './types'
+import { UnsignedDocument, AdminSignature, VerifyResult, NodeRecord } from './types'
 
 // ── Hashing ───────────────────────────────────────────────────────────────────
 
@@ -58,40 +58,120 @@ function buildMerkleTree(leaves: string[]): string[] {
   return buildMerkleTree(next)
 }
 
-// ── Ethereum EIP-191 signatures ──────────────────────────────────────────────
+// ── EIP-712 Typed Data Signing ───────────────────────────────────────────────
 
 /**
- * Build the human-readable message that wallets will display when signing.
- * Uses EIP-191 personal_sign format.
+ * EIP-712 domain separator — identifies this signing context.
+ * No chainId since this is chain-agnostic (off-chain registry).
  */
-export function buildSignMessage(documentHash: string): string {
-  return `MPC Registry Sign\ndocumentHash:${documentHash}`
+export const EIP712_DOMAIN = {
+  name: 'MPC Node Registry',
+  version: '1',
 }
 
 /**
- * Sign a documentHash using an ethers Wallet (for CLI / testing).
- * Produces the same signature format as MetaMask personal_sign.
+ * EIP-712 type definitions.
+ * MetaMask displays each field with its label and value.
  */
-export async function signDocument(documentHash: string, privateKey: string): Promise<string> {
+export const EIP712_TYPES = {
+  NodeRecord: [
+    { name: 'nodeId',      type: 'string' },
+    { name: 'ikPub',       type: 'string' },
+    { name: 'ekPub',       type: 'string' },
+    { name: 'role',        type: 'string' },
+    { name: 'walletScope', type: 'string[]' },
+    { name: 'status',      type: 'string' },
+    { name: 'enrolledAt',  type: 'uint256' },
+    { name: 'revokedAt',   type: 'uint256' },
+  ],
+  RegistryDocument: [
+    { name: 'registryId',       type: 'string' },
+    { name: 'version',          type: 'uint256' },
+    { name: 'issuedAt',         type: 'uint256' },
+    { name: 'expiresAt',        type: 'uint256' },
+    { name: 'adminAddresses',   type: 'address[]' },
+    { name: 'nodes',            type: 'NodeRecord[]' },
+    { name: 'merkleRoot',       type: 'string' },
+    { name: 'prevDocumentHash', type: 'string' },
+    { name: 'documentHash',     type: 'string' },
+  ],
+}
+
+type DocForSigning = {
+  registryId: string
+  version: number
+  issuedAt: number
+  expiresAt: number
+  adminAddresses: string[]
+  nodes: NodeRecord[]
+  merkleRoot: string
+  prevDocumentHash: string | null
+  documentHash: string
+}
+
+/**
+ * Build the EIP-712 typed data value from a document.
+ * Normalizes fields for EIP-712 compatibility (null → empty string, revokedAt → 0).
+ */
+export function buildTypedDataValue(doc: DocForSigning) {
+  return {
+    registryId:       doc.registryId,
+    version:          doc.version,
+    issuedAt:         doc.issuedAt,
+    expiresAt:        doc.expiresAt,
+    adminAddresses:   doc.adminAddresses,
+    nodes:            doc.nodes.map(n => ({
+      nodeId:      n.nodeId,
+      ikPub:       n.ikPub,
+      ekPub:       n.ekPub,
+      role:        n.role,
+      walletScope: n.walletScope,
+      status:      n.status,
+      enrolledAt:  n.enrolledAt,
+      revokedAt:   n.revokedAt ?? 0,
+    })),
+    merkleRoot:       doc.merkleRoot,
+    prevDocumentHash: doc.prevDocumentHash ?? '',
+    documentHash:     doc.documentHash,
+  }
+}
+
+/**
+ * Returns the full EIP-712 payload for use by MetaMask (eth_signTypedData_v4).
+ */
+export function getEIP712Payload(doc: DocForSigning) {
+  return {
+    domain:      EIP712_DOMAIN,
+    types:       EIP712_TYPES,
+    primaryType: 'RegistryDocument' as const,
+    message:     buildTypedDataValue(doc),
+  }
+}
+
+/**
+ * Sign a document using an ethers Wallet (for CLI / testing).
+ * Produces the same signature as MetaMask eth_signTypedData_v4.
+ */
+export async function signDocument(doc: DocForSigning, privateKey: string): Promise<string> {
   const wallet = new ethers.Wallet(privateKey)
-  const message = buildSignMessage(documentHash)
-  return wallet.signMessage(message)
+  const value = buildTypedDataValue(doc)
+  return wallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, value)
 }
 
 /**
- * Recover the signer's Ethereum address from a personal_sign signature.
+ * Recover the signer's Ethereum address from an EIP-712 signature.
  */
-export function recoverSigner(documentHash: string, signature: string): string {
-  const message = buildSignMessage(documentHash)
-  return ethers.verifyMessage(message, signature)
+export function recoverSigner(doc: DocForSigning, signature: string): string {
+  const value = buildTypedDataValue(doc)
+  return ethers.verifyTypedData(EIP712_DOMAIN, EIP712_TYPES, value, signature)
 }
 
 /**
  * Verify a single signature against an expected admin address.
  */
-export function verifySingleSig(documentHash: string, signature: string, expectedAddress: string): boolean {
+export function verifySingleSig(doc: DocForSigning, signature: string, expectedAddress: string): boolean {
   try {
-    const recovered = recoverSigner(documentHash, signature)
+    const recovered = recoverSigner(doc, signature)
     return recovered.toLowerCase() === expectedAddress.toLowerCase()
   } catch {
     return false
@@ -105,9 +185,19 @@ export function deriveNodeId(ikPub: string, role: string, enrolledAt: number): s
 // ── Multi-signature verification ──────────────────────────────────────────────
 
 export function verifyMultiSig(
-  documentHash: string,
+  doc: {
+    registryId: string
+    version: number
+    issuedAt: number
+    expiresAt: number
+    adminAddresses: string[]
+    nodes: NodeRecord[]
+    merkleRoot: string
+    prevDocumentHash: string | null
+    documentHash: string
+  },
   signatures: AdminSignature[],
-  adminAddresses: string[],
+  signingAdminAddresses: string[],
   required: number
 ): VerifyResult {
 
@@ -115,7 +205,7 @@ export function verifyMultiSig(
     return { valid: false, reason: `Need >= ${required} signatures, got ${signatures?.length ?? 0}` }
   }
 
-  const adminSet = new Set(adminAddresses.map(a => a.toLowerCase()))
+  const adminSet = new Set(signingAdminAddresses.map(a => a.toLowerCase()))
   const seen = new Set<string>()
   let validCount = 0
 
@@ -136,7 +226,7 @@ export function verifyMultiSig(
       return { valid: false, reason: `Malformed signature from ${sig.adminAddress}` }
     }
 
-    const ok = verifySingleSig(documentHash, sig.signature, sig.adminAddress)
+    const ok = verifySingleSig(doc, sig.signature, sig.adminAddress)
     if (!ok) {
       return { valid: false, reason: `Invalid signature from ${sig.adminAddress}` }
     }

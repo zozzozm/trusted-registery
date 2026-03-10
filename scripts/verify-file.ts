@@ -63,7 +63,8 @@ function main() {
   // For genesis, this is self-consistent. For later versions, the CI should
   // ideally verify the full chain, but for simplicity we trust the document's
   // admin addresses (they are protected by the hash chain from genesis).
-  const result = verifyMultiSig(savedHash, doc.signatures, doc.adminAddresses, CONFIG.MIN_SIGNATURES)
+  body.documentHash = savedHash
+  const result = verifyMultiSig(body, doc.signatures, doc.adminAddresses, CONFIG.MIN_SIGNATURES)
   if (!result.valid) {
     console.error(`Signatures invalid: ${result.reason}`)
     process.exit(1)

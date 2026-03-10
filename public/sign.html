@@ -457,13 +457,22 @@
     async function signDoc() {
       if (!account || !draft) return
       try {
-        const message = `MPC Registry Sign\ndocumentHash:${draft.documentHash}`
-        const hexMessage = '0x' + Array.from(new TextEncoder().encode(message))
-          .map(b => b.toString(16).padStart(2, '0')).join('')
+        // Fetch the EIP-712 typed data payload from the server
+        const msgRes = await fetch(`${API}/pending/message`)
+        if (!msgRes.ok) { alert('Failed to fetch sign payload from server'); return }
+        const payload = await msgRes.json()
+
+        // EIP-712: MetaMask shows structured, labeled fields
+        const typedData = JSON.stringify({
+          types: { EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }], ...payload.types },
+          domain: payload.domain,
+          primaryType: payload.primaryType,
+          message: payload.message,
+        })
 
         signature = await window.ethereum.request({
-          method: 'personal_sign',
-          params: [hexMessage, account],
+          method: 'eth_signTypedData_v4',
+          params: [account, typedData],
         })
 
         document.getElementById('sign-result').textContent = signature

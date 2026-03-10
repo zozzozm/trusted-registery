@@ -64,6 +64,9 @@ export class RegistryController {
   @HttpCode(HttpStatus.OK)
   publish(@Body() doc: PublishDocumentDto) { return this.svc.publishDocument(doc as any) }
 
+  @Get('pending/message')
+  pendingMessage() { return this.svc.getPendingSignPayload() }
+
   @Post('pending/sign')
   @HttpCode(HttpStatus.OK)
   sign(@Body() body: SignPendingDto) { return this.svc.signPendingDocument(body) }

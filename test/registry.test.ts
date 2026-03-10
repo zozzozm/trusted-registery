@@ -14,7 +14,7 @@ import { INestApplication, ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
 import { ethers } from 'ethers'
 import { AppModule } from '../src/app.module'
-import { signDocument, computeDocumentHash, computeMerkleRoot, buildSignMessage } from '../src/common/crypto'
+import { signDocument, computeDocumentHash, computeMerkleRoot, EIP712_DOMAIN, EIP712_TYPES, buildTypedDataValue } from '../src/common/crypto'
 import { RegistryDocument, UnsignedDocument } from '../src/common/types'
 
 let wallets: ethers.HDNodeWallet[] = []
@@ -45,6 +45,12 @@ function adminAddresses(): string[] {
   return wallets.map(w => w.address)
 }
 
+/** Helper: sign a document with EIP-712 using a wallet */
+async function signWithWallet(wallet: ethers.HDNodeWallet, doc: UnsignedDocument): Promise<string> {
+  const value = buildTypedDataValue(doc)
+  return wallet.signTypedData(EIP712_DOMAIN, EIP712_TYPES, value)
+}
+
 async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<RegistryDocument> {
   const now = Math.floor(Date.now() / 1000)
   const u: UnsignedDocument = {
@@ -56,12 +62,23 @@ async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<Regi
     ...overrides,
   }
   u.documentHash = computeDocumentHash(u)
-  const message = buildSignMessage(u.documentHash)
   return {
     ...u,
     signatures: [
-      { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
-      { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
+      { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], u) },
+      { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], u) },
+    ]
+  }
+}
+
+/** Helper: sign a pending draft fetched from the server */
+async function signPending(pending: any): Promise<RegistryDocument> {
+  const { signatures: _, ...unsigned } = pending
+  return {
+    ...pending,
+    signatures: [
+      { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
+      { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
     ]
   }
 }
@@ -93,11 +110,11 @@ describe('Verify — each failure case', () => {
       nodes: d.nodes, merkleRoot: d.merkleRoot,
       prevDocumentHash: d.prevDocumentHash, documentHash: '',
     }
-    d.documentHash = computeDocumentHash(unsigned)
-    const message = buildSignMessage(d.documentHash)
+    unsigned.documentHash = computeDocumentHash(unsigned)
+    d.documentHash = unsigned.documentHash
     d.signatures = [
-      { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
-      { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
+      { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
+      { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
     ]
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send(d)
     expect(r.body.steps.find((s:any) => s.step==='expiry').passed).toBe(false)
@@ -151,14 +168,7 @@ describe('Full publish flow', () => {
   })
   it('sign and publish enrollment', async () => {
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const message = buildSignMessage(pending.documentHash)
-    const signed: RegistryDocument = {
-      ...pending,
-      signatures: [
-        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
-        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
-      ]
-    }
+    const signed = await signPending(pending)
     const r = await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
     expect(r.body.version).toBe(2)
   })
@@ -182,14 +192,7 @@ describe('Admin rotation', () => {
   })
   it('current admins sign the admin change', async () => {
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const message = buildSignMessage(pending.documentHash)
-    const signed: RegistryDocument = {
-      ...pending,
-      signatures: [
-        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
-        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
-      ]
-    }
+    const signed = await signPending(pending)
     const r = await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
     expect(r.status).toBe(200)
     expect(r.body.version).toBe(3)
@@ -204,7 +207,8 @@ describe('Admin rotation', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/pending')
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const sig = await signDocument(pending.documentHash, wallets[2].privateKey)
+    const { signatures: _, ...unsigned } = pending
+    const sig = await signDocument(unsigned, wallets[2].privateKey)
     const r = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
       adminAddress: wallets[2].address, signature: sig,
     })
@@ -221,7 +225,8 @@ describe('Security', () => {
       role: 'USER_COSIGNER', walletScope: ['wallet-002'],
     })
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const sig = await signDocument(pending.documentHash, wallets[0].privateKey)
+    const { signatures: _, ...unsigned } = pending
+    const sig = await signDocument(unsigned, wallets[0].privateKey)
     await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
       adminAddress: wallets[0].address, signature: sig,
     })
@@ -243,14 +248,7 @@ describe('Security', () => {
       nodeId: activeNode.nodeId, reason: 'test revocation',
     })
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const message = buildSignMessage(pending.documentHash)
-    const signed: RegistryDocument = {
-      ...pending,
-      signatures: [
-        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
-        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
-      ]
-    }
+    const signed = await signPending(pending)
     await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
 
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
@@ -270,13 +268,13 @@ describe('Security', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/pending')
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const message = buildSignMessage(pending.documentHash)
+    const { signatures: _, ...unsigned } = pending
     const docWithExtra = {
       ...pending,
       malicious: 'data',
       signatures: [
-        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
-        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
+        { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
+        { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
       ]
     }
     const r = await request(app.getHttpServer()).post('/api/registry/publish').send(docWithExtra)
@@ -337,7 +335,8 @@ describe('Security', () => {
     await request(app.getHttpServer()).post('/api/registry/pending')
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
 
-    const sig = await signDocument(pending.documentHash, wallets[0].privateKey)
+    const { signatures: _, ...unsigned } = pending
+    const sig = await signDocument(unsigned, wallets[0].privateKey)
     const r = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
       adminAddress: wallets[0].address, signature: sig, documentHash: 'wrong_hash_value',
     })
