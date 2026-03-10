@@ -28,7 +28,7 @@ export const CONFIG = {
 
   // ── Registry identity ─────────────────────────────────────────────────────
   REGISTRY_ID:      optional('REGISTRY_ID', 'dev-custody-v1'),
-  EXPIRY_SECONDS:   parseInt(optional('EXPIRY_SECONDS', String(7 * 24 * 3600))),
+  EXPIRY_SECONDS:   parseInt(optional('EXPIRY_SECONDS', String(30 * 24 * 3600))),
 
   // ── Admin public keys (TRUST ROOT) ───────────────────────────────────────
   // These are Ed25519 public keys — safe to store anywhere.

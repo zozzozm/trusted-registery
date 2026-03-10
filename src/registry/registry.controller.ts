@@ -1,6 +1,7 @@
 import {
   Controller, Get, Post, Body, Param, Query,
-  HttpCode, HttpStatus
+  HttpCode, HttpStatus,
+  Delete
 } from '@nestjs/common'
 import { RegistryService } from './registry.service'
 
@@ -20,11 +21,19 @@ export class RegistryController {
 
   /**
    * GET /registry/pending
-   * Returns an unsigned draft of the next version.
-   * Admins fetch this, sign it offline, then POST to /registry/publish.
+   * Returns the currently staged pending draft (read-only).
    */
   @Get('pending')
   pending() { return this.svc.getPendingDocument() }
+
+  /**
+   * POST /registry/pending
+   * Create a new pending draft from the current published nodes.
+   * Fails if a draft already exists — DELETE /registry/pending first.
+   */
+  @Post('pending')
+  @HttpCode(HttpStatus.CREATED)
+  createPending() { return this.svc.createPendingDocument() }
 
   /** GET /registry/nodes — list nodes, optionally filter by wallet or role */
   @Get('nodes')
@@ -89,4 +98,18 @@ export class RegistryController {
   @Post('publish')
   @HttpCode(HttpStatus.OK)
   publish(@Body() doc: any) { return this.svc.publishDocument(doc) }
+
+  /**
+   * POST /registry/pending/sign
+   * Add one admin signature to the staged draft.
+   * Call GET /pending first to get the draft and its documentHash.
+   */
+  @Post('pending/sign')
+  @HttpCode(HttpStatus.OK)
+  sign(@Body() body: { adminIndex: number; signature: string }) {
+    return this.svc.signPendingDocument(body)
+  }
+
+  @Delete('pending')
+  clearPending() { return this.svc.clearStagedDraft() }
 }

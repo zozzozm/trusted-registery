@@ -23,6 +23,7 @@ export class RegistryService implements OnModuleInit {
   private currentDoc: RegistryDocument | null = null
   private pendingNodes: Map<string, NodeRecord> = new Map()  // nodeId → record
   private auditLog: Array<{ event: string; detail: object; at: number }> = []
+  private stagedDraft: RegistryDocument | null = null
 
   onModuleInit() {
     this.loadFromDisk()
@@ -38,26 +39,48 @@ export class RegistryService implements OnModuleInit {
     return this.currentDoc
   }
 
-  /** GET /registry/pending — returns an UNSIGNED draft ready for admin signing */
-  getPendingDocument(): UnsignedDocument {
-    const nodes  = this.currentDoc ? [...this.currentDoc.nodes] : []
-    const now    = Math.floor(Date.now() / 1000)
-    const nextV  = (this.currentDoc?.version ?? 0) + 1
-    const prevHash = this.currentDoc?.documentHash ?? null
-    const sorted   = [...nodes].sort((a, b) => a.nodeId.localeCompare(b.nodeId))
+  /** GET /registry/pending — read-only, returns the staged draft */
+  getPendingDocument(): RegistryDocument {
+    if (!this.stagedDraft) throw new NotFoundException('No pending document. Create one with POST /registry/pending first.')
+    return this.stagedDraft
+  }
 
-    const draft: UnsignedDocument = {
-      registryId:       CONFIG.REGISTRY_ID,
-      version:          nextV,
-      issuedAt:         now,
-      expiresAt:        now + CONFIG.EXPIRY_SECONDS,
-      nodes:            sorted,
-      merkleRoot:       computeMerkleRoot(sorted),
-      prevDocumentHash: prevHash,
-      documentHash:     '',   // filled below
+  /** POST /registry/pending — create a new pending draft from current published nodes */
+  createPendingDocument(): RegistryDocument {
+    if (this.stagedDraft) throw new ConflictException('A pending document already exists. DELETE /registry/pending first.')
+
+    const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+    const draft = this._buildDraft(nodes)
+    this.stagedDraft = { ...draft, signatures: [] }
+    return this.stagedDraft
+  }
+
+  /** POST /registry/pending/sign — add one admin signature to the staged draft */
+  signPendingDocument(body: { adminIndex: number; signature: string }): RegistryDocument {
+    if (!this.stagedDraft) throw new NotFoundException('No pending document. Call GET /registry/pending first.')
+
+    const { adminIndex, signature } = body
+
+    // Validate adminIndex
+    const pubKey = CONFIG.ADMIN_KEYS[adminIndex]
+    if (pubKey === undefined) throw new BadRequestException(`Unknown adminIndex: ${adminIndex}`)
+
+    // Check for duplicate
+    if (this.stagedDraft.signatures.some(s => s.adminIndex === adminIndex)) {
+      throw new ConflictException(`Admin ${adminIndex} has already signed this draft`)
     }
-    draft.documentHash = computeDocumentHash(draft)
-    return draft
+
+    // Validate signature format
+    if (!/^[0-9a-f]{128}$/i.test(signature)) {
+      throw new BadRequestException('Signature must be 128 hex chars (64 bytes)')
+    }
+
+    // Verify signature against documentHash
+    const ok = verifyHex(this.stagedDraft.documentHash, signature, pubKey)
+    if (!ok) throw new BadRequestException('Signature verification failed')
+
+    this.stagedDraft.signatures.push({ adminIndex, signature })
+    return this.stagedDraft
   }
 
   /** GET /registry/node/:nodeId */
@@ -117,7 +140,7 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const required = ['registryId','version','issuedAt','expiresAt','nodes','merkleRoot','prevDocumentHash','documentHash','signatures']
+    const required = ['registryId','version','issuedAt','expiresAt','nodes','merkleRoot','prevDocumentHash','documentHash']
     const missing  = required.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
@@ -142,8 +165,9 @@ export class RegistryService implements OnModuleInit {
     }
 
     // Step 4 — Document hash integrity
-    const { signatures: _s, documentHash: _h, ...body } = doc
-    const expectedHash = computeDocumentHash(body as UnsignedDocument)
+const { signatures: _s, ...bodyWithHash } = doc
+const bodyForHash = { ...bodyWithHash, documentHash: '' }
+const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
     if (expectedHash !== doc.documentHash) {
       fail('documentHash', `Recomputed: ${expectedHash.substring(0,16)}...\nDocument has: ${doc.documentHash.substring(0,16)}...`)
     } else {
@@ -197,15 +221,15 @@ export class RegistryService implements OnModuleInit {
 
   /**
    * POST /registry/nodes/enroll
-   * Propose a new node. Returns a draft document ready for signing.
-   * Does NOT take effect until a signed document is submitted.
+   * Upsert a new node into the staged pending draft.
+   * Creates a draft if none exists. Recomputes hash and clears signatures.
    */
   proposeEnroll(body: {
     ikPub: string
     ekPub: string
     role: NodeRole
     walletScope: string[]
-  }): { nodeId: string; draft: UnsignedDocument } {
+  }): { nodeId: string; draft: RegistryDocument } {
     const now    = Math.floor(Date.now() / 1000)
     const nodeId = deriveNodeId(body.ikPub, body.role, now)
 
@@ -217,38 +241,61 @@ export class RegistryService implements OnModuleInit {
     }
     if (!body.walletScope?.length) throw new BadRequestException('walletScope cannot be empty')
 
-    // Check not already enrolled
-    if (this.currentDoc?.nodes.some(n => n.ikPub === body.ikPub && n.status === 'ACTIVE')) {
+    // Check not already enrolled (in published doc or in the draft)
+    const draftNodes = this.stagedDraft?.nodes ?? this.currentDoc?.nodes ?? []
+    if (draftNodes.some(n => n.ikPub === body.ikPub && n.status === 'ACTIVE')) {
       throw new ConflictException('A node with this ikPub is already active')
     }
 
-    // Stage the new node
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    // Add the node and refresh hash
     const newNode: NodeRecord = { ...body, nodeId, status: 'ACTIVE', enrolledAt: now }
-    const currentNodes = this.currentDoc?.nodes ?? []
-    const draft = this._buildDraft([...currentNodes, newNode])
+    this.stagedDraft.nodes.push(newNode)
+    this._refreshDraftHash()
 
     this.audit('ENROLL_PROPOSED', { nodeId, role: body.role })
-    return { nodeId, draft }
+    return { nodeId, draft: this.stagedDraft }
   }
 
   /**
    * POST /registry/nodes/revoke
-   * Propose revoking a node. Returns a draft document ready for signing.
+   * Mark a node as REVOKED in the staged pending draft.
+   * Creates a draft if none exists. Recomputes hash and clears signatures.
    */
-  proposeRevoke(body: { nodeId: string; reason: string }): UnsignedDocument {
-    const node = this.currentDoc?.nodes.find(n => n.nodeId === body.nodeId)
+  proposeRevoke(body: { nodeId: string; reason: string }): RegistryDocument {
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      if (!this.currentDoc) throw new NotFoundException(`Node ${body.nodeId} not found`)
+      const nodes = [...this.currentDoc.nodes]
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    // Find node in the draft
+    const node = this.stagedDraft.nodes.find(n => n.nodeId === body.nodeId)
     if (!node) throw new NotFoundException(`Node ${body.nodeId} not found`)
     if (node.status === 'REVOKED') throw new ConflictException('Node is already revoked')
 
+    // Revoke and refresh hash
     const now = Math.floor(Date.now() / 1000)
-    const updated = this.currentDoc!.nodes.map(n =>
-      n.nodeId === body.nodeId ? { ...n, status: 'REVOKED' as const, revokedAt: now } : n
-    )
-    const draft = this._buildDraft(updated)
+    node.status = 'REVOKED'
+    node.revokedAt = now
+    this._refreshDraftHash()
+
     this.audit('REVOKE_PROPOSED', { nodeId: body.nodeId, reason: body.reason })
-    return draft
+    return this.stagedDraft
   }
 
+  clearStagedDraft() {
+    this.stagedDraft = null
+    return { cleared: true }
+  }
   /**
    * POST /registry/publish
    * Submit a fully signed document. This becomes the new current registry.
@@ -264,6 +311,7 @@ export class RegistryService implements OnModuleInit {
 
     // Persist
     this.currentDoc = doc
+    this.stagedDraft = null  // ← clear so next pending is fresh
     this.saveToDisk()
     this.audit('DOCUMENT_PUBLISHED', { version: doc.version, nodes: doc.nodes.length })
 
@@ -273,6 +321,17 @@ export class RegistryService implements OnModuleInit {
   // ══════════════════════════════════════════════════════════════════════════
   // INTERNAL HELPERS
   // ══════════════════════════════════════════════════════════════════════════
+
+  /** Re-sort nodes, recompute merkleRoot + documentHash, clear signatures */
+  private _refreshDraftHash() {
+    if (!this.stagedDraft) return
+    this.stagedDraft.nodes.sort((a, b) => a.nodeId.localeCompare(b.nodeId))
+    this.stagedDraft.merkleRoot = computeMerkleRoot(this.stagedDraft.nodes)
+    this.stagedDraft.documentHash = ''
+    const { signatures: _, ...unsigned } = this.stagedDraft
+    this.stagedDraft.documentHash = computeDocumentHash(unsigned as UnsignedDocument)
+    this.stagedDraft.signatures = []
+  }
 
   private _buildDraft(nodes: NodeRecord[]): UnsignedDocument {
     const sorted  = [...nodes].sort((a, b) => a.nodeId.localeCompare(b.nodeId))

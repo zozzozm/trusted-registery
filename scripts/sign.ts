@@ -19,7 +19,7 @@ import { CONFIG } from '../src/common/config'
 import { writeFileSync, readFileSync, existsSync } from 'fs'
 
 async function main() {
-  const adminIndex = parseInt(process.env.ADMIN_INDEX ?? '0')
+  const adminIndex = parseInt(process.env.ADMIN_INDEX ?? '1')
   const draftFile  = process.env.DRAFT_FILE ?? `./data/draft-pending.json`
   const serverUrl  = process.env.SERVER_URL ?? `http://localhost:${CONFIG.PORT}/api`
 
@@ -75,7 +75,7 @@ async function main() {
   }
 
   // Save
-  const outFile = draftFile.replace('.json', `-signed-${adminIndex}.json`)
+  const outFile = draftFile.replace('.json', `.json`)
   writeFileSync(outFile, JSON.stringify(draft, null, 2))
   console.log(`\n✓ Saved to ${outFile}`)
   console.log(`  Signatures so far: ${draft.signatures.length}/${CONFIG.MIN_SIGNATURES} required`)
