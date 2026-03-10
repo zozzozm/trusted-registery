@@ -4,8 +4,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Injectable, OnModuleInit, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { dirname } from 'path'
+import { readFileSync, writeFileSync, mkdirSync, renameSync, appendFileSync } from 'fs'
+import { dirname, resolve } from 'path'
 import {
   RegistryDocument, UnsignedDocument, NodeRecord, AdminSignature,
   NodeRole, VerifyResult
@@ -21,9 +21,9 @@ export class RegistryService implements OnModuleInit {
 
   // ── In-memory state ───────────────────────────────────────────────────────
   private currentDoc: RegistryDocument | null = null
-  private pendingNodes: Map<string, NodeRecord> = new Map()  // nodeId → record
   private auditLog: Array<{ event: string; detail: object; at: number }> = []
   private stagedDraft: RegistryDocument | null = null
+  private draftLocked = false
 
   onModuleInit() {
     this.loadFromDisk()
@@ -56,10 +56,15 @@ export class RegistryService implements OnModuleInit {
   }
 
   /** POST /registry/pending/sign — add one admin signature to the staged draft */
-  signPendingDocument(body: { adminIndex: number; signature: string }): RegistryDocument {
+  signPendingDocument(body: { adminIndex: number; signature: string; documentHash?: string }): RegistryDocument {
     if (!this.stagedDraft) throw new NotFoundException('No pending document. Call GET /registry/pending first.')
 
-    const { adminIndex, signature } = body
+    const { adminIndex, signature, documentHash } = body
+
+    // If caller provided documentHash, verify it matches the current draft
+    if (documentHash && documentHash !== this.stagedDraft.documentHash) {
+      throw new ConflictException('documentHash does not match the current draft. The draft may have been modified.')
+    }
 
     // Validate adminIndex
     const pubKey = CONFIG.ADMIN_KEYS[adminIndex]
@@ -80,6 +85,10 @@ export class RegistryService implements OnModuleInit {
     if (!ok) throw new BadRequestException('Signature verification failed')
 
     this.stagedDraft.signatures.push({ adminIndex, signature })
+
+    // Lock draft after first signature to prevent TOCTOU
+    this.draftLocked = true
+
     return this.stagedDraft
   }
 
@@ -113,26 +122,20 @@ export class RegistryService implements OnModuleInit {
       expired:     doc ? Math.floor(Date.now() / 1000) > doc.expiresAt : null,
       adminKeys:   CONFIG.ADMIN_KEYS.map((k, i) => ({
         index:       i,
-        pubKey:      k.substring(0, 16) + '...',  // show first 8 bytes for debug
+        pubKey:      k.substring(0, 16) + '...',
       })),
     }
   }
 
   /** GET /registry/audit */
   getAuditLog() {
-    return this.auditLog.slice().reverse()  // newest first
+    return this.auditLog.slice().reverse()
   }
 
   // ══════════════════════════════════════════════════════════════════════════
-  // VERIFY ENDPOINT — the main learning/testing endpoint
+  // VERIFY ENDPOINT
   // ══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * POST /registry/verify
-   * Accepts any registry document and runs every verification step,
-   * returning a detailed report of what passed and what failed.
-   * This is the endpoint you use to learn and test the system.
-   */
   verifyDocument(doc: any): object {
     const steps: Array<{ step: string; passed: boolean; detail: string }> = []
 
@@ -164,10 +167,18 @@ export class RegistryService implements OnModuleInit {
       pass('expiry', `Valid for ${Math.floor(secsLeft / 3600)}h ${Math.floor((secsLeft % 3600) / 60)}m more`)
     }
 
-    // Step 4 — Document hash integrity
-const { signatures: _s, ...bodyWithHash } = doc
-const bodyForHash = { ...bodyWithHash, documentHash: '' }
-const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
+    // Step 4 — Document hash integrity (whitelist known fields only)
+    const unsignedClean: UnsignedDocument = {
+      registryId:       doc.registryId,
+      version:          doc.version,
+      issuedAt:         doc.issuedAt,
+      expiresAt:        doc.expiresAt,
+      nodes:            doc.nodes,
+      merkleRoot:       doc.merkleRoot,
+      prevDocumentHash: doc.prevDocumentHash,
+      documentHash:     '',
+    }
+    const expectedHash = computeDocumentHash(unsignedClean)
     if (expectedHash !== doc.documentHash) {
       fail('documentHash', `Recomputed: ${expectedHash.substring(0,16)}...\nDocument has: ${doc.documentHash.substring(0,16)}...`)
     } else {
@@ -219,17 +230,17 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
   // WRITE ENDPOINTS (require signed document)
   // ══════════════════════════════════════════════════════════════════════════
 
-  /**
-   * POST /registry/nodes/enroll
-   * Upsert a new node into the staged pending draft.
-   * Creates a draft if none exists. Recomputes hash and clears signatures.
-   */
   proposeEnroll(body: {
     ikPub: string
     ekPub: string
     role: NodeRole
     walletScope: string[]
   }): { nodeId: string; draft: RegistryDocument } {
+    // Reject if draft is locked (has signatures)
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
     const now    = Math.floor(Date.now() / 1000)
     const nodeId = deriveNodeId(body.ikPub, body.role, now)
 
@@ -241,10 +252,10 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
     }
     if (!body.walletScope?.length) throw new BadRequestException('walletScope cannot be empty')
 
-    // Check not already enrolled (in published doc or in the draft)
+    // Check not already enrolled (active OR revoked — block re-enrollment of revoked keys)
     const draftNodes = this.stagedDraft?.nodes ?? this.currentDoc?.nodes ?? []
-    if (draftNodes.some(n => n.ikPub === body.ikPub && n.status === 'ACTIVE')) {
-      throw new ConflictException('A node with this ikPub is already active')
+    if (draftNodes.some(n => n.ikPub === body.ikPub)) {
+      throw new ConflictException('A node with this ikPub already exists')
     }
 
     // Auto-create draft if none exists
@@ -252,6 +263,11 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
       const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
       const base = this._buildDraft(nodes)
       this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    // Check nodeId collision
+    if (this.stagedDraft.nodes.some(n => n.nodeId === nodeId)) {
+      throw new ConflictException('nodeId collision — try again')
     }
 
     // Add the node and refresh hash
@@ -263,12 +279,12 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
     return { nodeId, draft: this.stagedDraft }
   }
 
-  /**
-   * POST /registry/nodes/revoke
-   * Mark a node as REVOKED in the staged pending draft.
-   * Creates a draft if none exists. Recomputes hash and clears signatures.
-   */
   proposeRevoke(body: { nodeId: string; reason: string }): RegistryDocument {
+    // Reject if draft is locked (has signatures)
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
     // Auto-create draft if none exists
     if (!this.stagedDraft) {
       if (!this.currentDoc) throw new NotFoundException(`Node ${body.nodeId} not found`)
@@ -294,13 +310,10 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
 
   clearStagedDraft() {
     this.stagedDraft = null
+    this.draftLocked = false
     return { cleared: true }
   }
-  /**
-   * POST /registry/publish
-   * Submit a fully signed document. This becomes the new current registry.
-   * This is the only way to change the registry state.
-   */
+
   publishDocument(doc: RegistryDocument): { published: boolean; version: number } {
     // Full verification
     const result = this.verifyDocument(doc) as any
@@ -309,9 +322,23 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
       throw new BadRequestException(`Document invalid: ${failed}`)
     }
 
+    // Construct clean document from known fields only
+    const clean: RegistryDocument = {
+      registryId:       doc.registryId,
+      version:          doc.version,
+      issuedAt:         doc.issuedAt,
+      expiresAt:        doc.expiresAt,
+      nodes:            doc.nodes,
+      merkleRoot:       doc.merkleRoot,
+      prevDocumentHash: doc.prevDocumentHash,
+      documentHash:     doc.documentHash,
+      signatures:       doc.signatures,
+    }
+
     // Persist
-    this.currentDoc = doc
-    this.stagedDraft = null  // ← clear so next pending is fresh
+    this.currentDoc = clean
+    this.stagedDraft = null
+    this.draftLocked = false
     this.saveToDisk()
     this.audit('DOCUMENT_PUBLISHED', { version: doc.version, nodes: doc.nodes.length })
 
@@ -352,28 +379,41 @@ const expectedHash = computeDocumentHash(bodyForHash as UnsignedDocument)
   }
 
   private audit(event: string, detail: object) {
-    this.auditLog.push({ event, detail, at: Math.floor(Date.now() / 1000) })
+    const entry = { event, detail, at: Math.floor(Date.now() / 1000) }
+    this.auditLog.push(entry)
     if (this.auditLog.length > 200) this.auditLog.shift()
+    this.appendAuditToDisk(entry)
+  }
+
+  private appendAuditToDisk(entry: { event: string; detail: object; at: number }) {
+    try {
+      const auditFile = resolve(dirname(CONFIG.REGISTRY_FILE), 'registry.audit.jsonl')
+      appendFileSync(auditFile, JSON.stringify(entry) + '\n')
+    } catch {
+      // Best-effort — don't crash if audit file write fails
+    }
   }
 
   private loadFromDisk() {
     try {
-      if (existsSync(CONFIG.REGISTRY_FILE)) {
-        const raw = readFileSync(CONFIG.REGISTRY_FILE, 'utf-8')
-        this.currentDoc = JSON.parse(raw)
-        console.log(`[Registry] Loaded version ${this.currentDoc?.version} from disk`)
-      } else {
+      const raw = readFileSync(CONFIG.REGISTRY_FILE, 'utf-8')
+      this.currentDoc = JSON.parse(raw)
+      console.log(`[Registry] Loaded version ${this.currentDoc?.version} from disk`)
+    } catch (e: any) {
+      if (e.code === 'ENOENT') {
         console.log('[Registry] No registry file found — starting empty')
+      } else {
+        console.error('[Registry] Failed to load from disk:', e)
       }
-    } catch (e) {
-      console.error('[Registry] Failed to load from disk:', e)
     }
   }
 
   private saveToDisk() {
     const dir = dirname(CONFIG.REGISTRY_FILE)
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
-    writeFileSync(CONFIG.REGISTRY_FILE, JSON.stringify(this.currentDoc, null, 2))
+    try { mkdirSync(dir, { recursive: true }) } catch {}
+    const tmpFile = CONFIG.REGISTRY_FILE + '.tmp'
+    writeFileSync(tmpFile, JSON.stringify(this.currentDoc, null, 2))
+    renameSync(tmpFile, CONFIG.REGISTRY_FILE)
     console.log(`[Registry] Saved version ${this.currentDoc?.version} to disk`)
   }
 }

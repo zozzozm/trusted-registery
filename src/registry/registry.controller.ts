@@ -4,6 +4,10 @@ import {
   Delete
 } from '@nestjs/common'
 import { RegistryService } from './registry.service'
+import {
+  EnrollNodeDto, RevokeNodeDto, SignPendingDto,
+  VerifyDocumentDto, PublishDocumentDto
+} from './dto'
 
 @Controller('registry')
 export class RegistryController {
@@ -52,61 +56,29 @@ export class RegistryController {
 
   // ── VERIFY ────────────────────────────────────────────────────────────────
 
-  /**
-   * POST /registry/verify
-   * ⭐ THE MAIN LEARNING ENDPOINT
-   * Submit any document and get a step-by-step verification report.
-   * Use this with Postman/curl to understand exactly what the system checks.
-   */
   @Post('verify')
   @HttpCode(HttpStatus.OK)
-  verify(@Body() doc: any) { return this.svc.verifyDocument(doc) }
+  verify(@Body() doc: VerifyDocumentDto) { return this.svc.verifyDocument(doc) }
 
   // ── WRITE (requires signed document) ─────────────────────────────────────
 
-  /**
-   * POST /registry/nodes/enroll
-   * Propose enrolling a new node.
-   * Returns: { nodeId, draft } — sign the draft offline, then publish.
-   */
   @Post('nodes/enroll')
   @HttpCode(HttpStatus.OK)
-  enroll(@Body() body: {
-    ikPub: string
-    ekPub: string
-    role: 'USER_COSIGNER' | 'PROVIDER_COSIGNER' | 'RECOVERY_GUARDIAN'
-    walletScope: string[]
-  }) { return this.svc.proposeEnroll(body) }
+  enroll(@Body() body: EnrollNodeDto) { return this.svc.proposeEnroll(body) }
 
-  /**
-   * POST /registry/nodes/revoke
-   * Propose revoking a node.
-   * Returns: draft — sign it offline, then publish.
-   */
   @Post('nodes/revoke')
   @HttpCode(HttpStatus.OK)
-  revoke(@Body() body: { nodeId: string; reason: string }) {
+  revoke(@Body() body: RevokeNodeDto) {
     return this.svc.proposeRevoke(body)
   }
 
-  /**
-   * POST /registry/publish
-   * Submit a fully signed registry document.
-   * This is the ONLY way to change the registry state.
-   * The document must have >= 2 valid admin signatures.
-   */
   @Post('publish')
   @HttpCode(HttpStatus.OK)
-  publish(@Body() doc: any) { return this.svc.publishDocument(doc) }
+  publish(@Body() doc: PublishDocumentDto) { return this.svc.publishDocument(doc as any) }
 
-  /**
-   * POST /registry/pending/sign
-   * Add one admin signature to the staged draft.
-   * Call GET /pending first to get the draft and its documentHash.
-   */
   @Post('pending/sign')
   @HttpCode(HttpStatus.OK)
-  sign(@Body() body: { adminIndex: number; signature: string }) {
+  sign(@Body() body: SignPendingDto) {
     return this.svc.signPendingDocument(body)
   }
 

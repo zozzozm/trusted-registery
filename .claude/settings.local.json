@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(npx tsc:*)",
-      "Bash(npx nest:*)"
+      "Bash(npx nest:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(npm ls:*)",
+      "Bash(git -C /Users/alimrz/Downloads/trusted-registry diff package-lock.json 2>&1 | head -30)",
+      "Bash(source ~/.nvm/nvm.sh && nvm use 25.0.0 && node --version)",
+      "Bash(bash -c 'export NVM_DIR=\"$HOME/.nvm\" && [ -s \"$NVM_DIR/nvm.sh\" ] && . \"$NVM_DIR/nvm.sh\" && nvm ls 2>&1 | head -20')",
+      "Bash(export PATH=\"$HOME/.nvm/versions/node/v25.0.0/bin:$PATH\" && node --version && npm run test 2>&1)",
+      "Bash(export PATH=\"$HOME/.nvm/versions/node/v25.0.0/bin:$PATH\" && npm install @nestjs/throttler 2>&1)",
+      "Bash(sudo chown:*)",
+      "Bash(git reset:*)"
     ]
   }
 }

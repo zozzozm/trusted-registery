@@ -45,7 +45,7 @@ async function main() {
   } else {
     console.log(`Fetching pending draft from ${serverUrl}/registry/pending...`)
     const res  = await fetch(`${serverUrl}/registry/pending`)
-    draft      = await res.json()
+    draft      = await res.json() as any
     console.log(`Fetched draft v${draft.version}`)
   }
 
@@ -65,13 +65,31 @@ async function main() {
   console.log(`Self-verify: ${ok ? '✓ passed' : '✗ FAILED'}`)
   if (!ok) { console.error('Signature failed self-verification!'); process.exit(1) }
 
-  // Merge signature into the draft
-  const existing = draft.signatures ?? []
-  if (existing.find((s: any) => s.adminIndex === adminIndex)) {
-    console.log(`⚠️  Admin ${adminIndex} already signed this draft`)
+  // Post signature to the server if running
+  if (!existsSync(draftFile)) {
+    console.log(`\nPosting signature to server...`)
+    const signRes = await fetch(`${serverUrl}/registry/pending/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ adminIndex, signature: sig, documentHash: draft.documentHash }),
+    })
+    if (signRes.ok) {
+      draft = await signRes.json() as any
+      console.log(`✓ Signature accepted by server`)
+    } else {
+      const err = await signRes.json() as any
+      console.error(`Server rejected signature:`, err.message)
+      process.exit(1)
+    }
   } else {
-    existing.push({ adminIndex, signature: sig })
-    draft.signatures = existing
+    // Merge signature into the draft file
+    const existing = draft.signatures ?? []
+    if (existing.find((s: any) => s.adminIndex === adminIndex)) {
+      console.log(`⚠️  Admin ${adminIndex} already signed this draft`)
+    } else {
+      existing.push({ adminIndex, signature: sig })
+      draft.signatures = existing
+    }
   }
 
   // Save

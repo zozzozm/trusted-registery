@@ -1,0 +1,46 @@
+{
+  "registryId": "dev-custody-v1",
+  "version": 5,
+  "issuedAt": 1773100824,
+  "expiresAt": 1773705624,
+  "nodes": [
+    {
+      "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+      "role": "PROVIDER_COSIGNER",
+      "walletScope": [
+        "wallet-001",
+        "wallet-002"
+      ],
+      "nodeId": "5d4726b47d4d63eabbabde98dd0656fb466f6a0a75d979c82a7e7301136bf9d7",
+      "status": "ACTIVE",
+      "enrolledAt": 1773100824
+    },
+    {
+      "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+      "role": "PROVIDER_COSIGNER",
+      "walletScope": [
+        "wallet-001",
+        "wallet-002"
+      ],
+      "nodeId": "dc0fc958bc6fad1067d30fc99d7185c81be2ed4791b10fe60018e1ff307f02f5",
+      "status": "REVOKED",
+      "enrolledAt": 1773098534,
+      "revokedAt": 1773099199
+    }
+  ],
+  "merkleRoot": "6fb7477c0bf2ee73cbe4ea91079dec069be2ab4a217a03837ea9d5953aaf9b58",
+  "prevDocumentHash": "bc3b05866f4c95fee9f366f5af8a7d72244119036f3a0ce50a3b00e0fdc4bc3d",
+  "documentHash": "c0d40a62b23107fc3e9ab8e5c7d959dc6c2be029e570a4509db93b46f325fe5e",
+  "signatures": [
+    {
+      "adminIndex": 2,
+      "signature": "823c77c3919ad6790689a628fdefbf77bbcb02cfb345399f48ae1eef22f407a757f6c6d4bb33cf5ac9ddfa2a53a39b88b4e37cf3fd213b259387c89c1a8f8e0a"
+    },
+    {
+      "adminIndex": 1,
+      "signature": "9aaa5f81dea1de3bf158aa458f038576ba2d11774641ecf23dee7ad945d2d9c350722fe418214761e26fe3e07337d834acb516706ddc7b37bda87e2d3fc68d0e"
+    }
+  ]
+}

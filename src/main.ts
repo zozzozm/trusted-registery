@@ -1,6 +1,7 @@
 import 'reflect-metadata'
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe } from '@nestjs/common'
+import { json } from 'express'
 import { AppModule } from './app.module'
 import { CONFIG } from './common/config'
 import helmet from 'helmet'
@@ -9,7 +10,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, { logger: ['log','warn','error'] })
 
   app.use(helmet())
-  app.enableCors()
+  app.enableCors({
+    origin: CONFIG.NODE_ENV === 'production'
+      ? (process.env.CORS_ORIGINS?.split(',') ?? [])
+      : true,
+  })
+  app.use(json({ limit: '1mb' }))
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
   app.setGlobalPrefix('api')
 

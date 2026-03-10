@@ -42,7 +42,7 @@ export const CONFIG = {
   },
 
   // Minimum number of valid admin signatures to accept a document
-  MIN_SIGNATURES: parseInt(optional('MIN_SIGNATURES', '2')),
+  MIN_SIGNATURES: Math.max(2, parseInt(optional('MIN_SIGNATURES', '2')) || 2),
 
   // ── Dev-only: private keys for the sign script ────────────────────────────
   // NEVER set these in production. On prod, signing happens on hardware keys.

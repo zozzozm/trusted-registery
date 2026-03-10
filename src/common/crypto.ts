@@ -57,7 +57,7 @@ function buildMerkleTree(leaves: string[]): string[] {
   const next: string[] = []
   for (let i = 0; i < leaves.length; i += 2) {
     const right = i + 1 < leaves.length ? leaves[i + 1] : leaves[i]
-    next.push(hashString(leaves[i] + right))
+    next.push(hashString('node:' + leaves[i] + ':' + right))
   }
   return buildMerkleTree(next)
 }
@@ -99,7 +99,7 @@ export async function generateKeypair(): Promise<{ privKey: string; pubKey: stri
 }
 
 export function deriveNodeId(ikPub: string, role: string, enrolledAt: number): string {
-  return hashString(ikPub + role + enrolledAt.toString())
+  return hashString('nodeId:' + ikPub + ':' + role + ':' + enrolledAt.toString())
 }
 
 // ── Multi-signature verification ──────────────────────────────────────────────
