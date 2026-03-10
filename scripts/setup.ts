@@ -6,7 +6,7 @@ import * as dotenv from 'dotenv'
 dotenv.config()
 
 import { ethers } from 'ethers'
-import { computeDocumentHash, computeMerkleRoot, buildSignMessage } from '../src/common/crypto'
+import { computeDocumentHash, computeMerkleRoot, signDocument } from '../src/common/crypto'
 import { UnsignedDocument, RegistryDocument } from '../src/common/types'
 import { CONFIG } from '../src/common/config'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
@@ -49,17 +49,15 @@ async function main() {
   console.log(`  documentHash: ${unsigned.documentHash}`)
   console.log()
 
-  const message = buildSignMessage(unsigned.documentHash)
-
   const wallet0 = new ethers.Wallet(CONFIG.DEV_ADMIN_PRIVKEY_0)
   const wallet1 = new ethers.Wallet(CONFIG.DEV_ADMIN_PRIVKEY_1)
 
   console.log(`Signing with admin 0 (${wallet0.address})...`)
-  const sig0 = await wallet0.signMessage(message)
+  const sig0 = await signDocument(unsigned, CONFIG.DEV_ADMIN_PRIVKEY_0)
   console.log(`  signature: ${sig0.substring(0, 32)}...`)
 
   console.log(`Signing with admin 1 (${wallet1.address})...`)
-  const sig1 = await wallet1.signMessage(message)
+  const sig1 = await signDocument(unsigned, CONFIG.DEV_ADMIN_PRIVKEY_1)
   console.log(`  signature: ${sig1.substring(0, 32)}...`)
 
   const signed: RegistryDocument = {
