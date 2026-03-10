@@ -3,19 +3,25 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MPC Registry — Admin Signer</title>
+  <title>MPC Registry — Admin Dashboard</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 800px; margin: 0 auto; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 900px; margin: 0 auto; }
     h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.5rem; }
     .subtitle { color: #8b949e; margin-bottom: 2rem; font-size: 0.9rem; }
-    .step { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
-    .step h2 { color: #58a6ff; font-size: 1rem; margin-bottom: 0.75rem; }
-    .step.done { border-color: #238636; }
-    .step.error { border-color: #da3633; }
-    button { background: #238636; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-family: inherit; }
+    .section { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .section h2 { color: #58a6ff; font-size: 1rem; margin-bottom: 0.75rem; }
+    .section.done { border-color: #238636; }
+    .section.error { border-color: #da3633; }
+    button { background: #238636; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-family: inherit; margin-right: 0.5rem; margin-bottom: 0.5rem; }
     button:hover { background: #2ea043; }
     button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+    button.secondary { background: #30363d; }
+    button.secondary:hover { background: #484f58; }
+    button.danger { background: #da3633; }
+    button.danger:hover { background: #f85149; }
+    button.purple { background: #8957e5; }
+    button.purple:hover { background: #a371f7; }
     .info { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; margin-top: 0.75rem; font-size: 0.85rem; word-break: break-all; }
     .info label { color: #8b949e; display: block; margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase; }
     .info .value { color: #c9d1d9; }
@@ -27,73 +33,199 @@
     .sig-item .addr { color: #58a6ff; }
     .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-left: 0.5rem; }
     .badge-ok { background: #238636; color: #fff; }
-    .badge-pending { background: #9e6a03; color: #fff; }
-    #status-bar { position: fixed; top: 0; left: 0; right: 0; padding: 0.5rem 2rem; font-size: 0.8rem; text-align: center; z-index: 10; }
+    .badge-active { background: #1f6feb; color: #fff; }
+    .badge-revoked { background: #da3633; color: #fff; }
     .hidden { display: none; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid #30363d; }
+    .tab { padding: 0.5rem 1rem; cursor: pointer; color: #8b949e; border-bottom: 2px solid transparent; font-size: 0.9rem; }
+    .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+    .tab:hover { color: #c9d1d9; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    input, select { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.5rem; color: #c9d1d9; font-family: inherit; font-size: 0.85rem; width: 100%; margin-bottom: 0.5rem; }
+    input:focus, select:focus { outline: none; border-color: #58a6ff; }
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { color: #8b949e; font-size: 0.8rem; display: block; margin-bottom: 0.25rem; }
+    .node-list { margin-top: 0.5rem; }
+    .node-item { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; }
+    .mono { font-family: monospace; font-size: 0.8rem; }
+    .row { display: flex; gap: 0.5rem; }
+    .row > * { flex: 1; }
+    .msg { padding: 0.5rem 0.75rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.85rem; }
+    .msg-success { background: #0d2818; border: 1px solid #238636; }
+    .msg-error { background: #2d1214; border: 1px solid #da3633; }
   </style>
 </head>
 <body>
-  <h1>MPC Registry Admin Signer</h1>
-  <p class="subtitle">Connect your MetaMask wallet to sign pending registry documents</p>
+  <h1>MPC Registry Admin Dashboard</h1>
+  <p class="subtitle">Manage nodes, sign and publish registry documents</p>
 
-  <!-- Step 1: Connect Wallet -->
-  <div class="step" id="step-connect">
-    <h2>1. Connect Wallet</h2>
+  <!-- Connect Wallet -->
+  <div class="section" id="sec-connect">
+    <h2>Wallet</h2>
     <button id="btn-connect" onclick="connectWallet()">Connect MetaMask</button>
-    <div id="wallet-info" class="info hidden">
-      <label>Connected Address</label>
-      <div class="value" id="wallet-address"></div>
-      <div id="admin-status" style="margin-top: 0.5rem;"></div>
+    <span id="wallet-display" class="hidden" style="font-size: 0.85rem;">
+      <span class="mono" id="wallet-address"></span>
+      <span id="admin-badge"></span>
+    </span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('manage')">Manage</div>
+    <div class="tab" onclick="switchTab('sign')">Sign & Publish</div>
+  </div>
+
+  <!-- Tab: Manage -->
+  <div id="tab-manage" class="tab-content active">
+
+    <!-- Current Registry Info -->
+    <div class="section">
+      <h2>Current Registry</h2>
+      <button class="secondary" onclick="loadCurrent()">Refresh</button>
+      <div id="current-info" class="info hidden">
+        <label>Version</label>
+        <div class="value" id="cur-version"></div>
+        <label style="margin-top:0.5rem;">Nodes</label>
+        <div class="value" id="cur-nodes"></div>
+        <label style="margin-top:0.5rem;">Admin Addresses</label>
+        <div class="value" id="cur-admins"></div>
+        <label style="margin-top:0.5rem;">Expires</label>
+        <div class="value" id="cur-expires"></div>
+      </div>
+    </div>
+
+    <!-- Draft Management -->
+    <div class="section">
+      <h2>Pending Draft</h2>
+      <button onclick="createDraft()">Create New Draft</button>
+      <button class="secondary" onclick="fetchDraft()">Fetch Existing</button>
+      <button class="danger" onclick="deleteDraft()">Delete Draft</button>
+      <div id="draft-msg"></div>
+      <div id="manage-draft-info" class="info hidden">
+        <label>Version</label>
+        <div class="value" id="mgmt-draft-version"></div>
+        <label style="margin-top:0.5rem;">Nodes</label>
+        <div class="value" id="mgmt-draft-nodes"></div>
+        <label style="margin-top:0.5rem;">Document Hash</label>
+        <div class="value mono" id="mgmt-draft-hash"></div>
+        <label style="margin-top:0.5rem;">Signatures</label>
+        <div class="value" id="mgmt-draft-sigs"></div>
+      </div>
+    </div>
+
+    <!-- Enroll Node -->
+    <div class="section">
+      <h2>Enroll Node</h2>
+      <div class="form-group">
+        <label>Identity Public Key (ikPub) — 64 hex chars</label>
+        <input id="enroll-ikpub" placeholder="0a1b2c...">
+      </div>
+      <div class="form-group">
+        <label>Ephemeral Public Key (ekPub) — 64 hex chars</label>
+        <input id="enroll-ekpub" placeholder="0a1b2c...">
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>Role</label>
+          <select id="enroll-role">
+            <option value="USER_COSIGNER">USER_COSIGNER</option>
+            <option value="PROVIDER_COSIGNER">PROVIDER_COSIGNER</option>
+            <option value="RECOVERY_GUARDIAN">RECOVERY_GUARDIAN</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Wallet Scope (comma-separated)</label>
+        <input id="enroll-wallets" placeholder="wallet-001, wallet-002">
+      </div>
+      <button onclick="enrollNode()">Propose Enrollment</button>
+      <div id="enroll-msg"></div>
+    </div>
+
+    <!-- Revoke Node -->
+    <div class="section">
+      <h2>Revoke Node</h2>
+      <div class="form-group">
+        <label>Node ID</label>
+        <input id="revoke-nodeid" placeholder="Node ID to revoke">
+      </div>
+      <div class="form-group">
+        <label>Reason</label>
+        <input id="revoke-reason" placeholder="Reason for revocation">
+      </div>
+      <button class="danger" onclick="revokeNode()">Propose Revocation</button>
+      <div id="revoke-msg"></div>
+    </div>
+
+    <!-- Node List -->
+    <div class="section">
+      <h2>Active Nodes</h2>
+      <button class="secondary" onclick="loadNodes()">Load Nodes</button>
+      <div id="node-list" class="node-list"></div>
     </div>
   </div>
 
-  <!-- Step 2: Fetch Pending Draft -->
-  <div class="step" id="step-draft">
-    <h2>2. Pending Draft</h2>
-    <button id="btn-fetch" onclick="fetchDraft()" disabled>Fetch Pending Draft</button>
-    <div id="draft-info" class="info hidden">
-      <label>Registry ID</label>
-      <div class="value" id="draft-registry"></div>
-      <label style="margin-top: 0.5rem;">Version</label>
-      <div class="value" id="draft-version"></div>
-      <label style="margin-top: 0.5rem;">Nodes</label>
-      <div class="value" id="draft-nodes"></div>
-      <label style="margin-top: 0.5rem;">Document Hash</label>
-      <div class="value" id="draft-hash" style="font-family: monospace; font-size: 0.8rem;"></div>
-      <label style="margin-top: 0.5rem;">Merkle Root</label>
-      <div class="value" id="draft-merkle" style="font-family: monospace; font-size: 0.8rem;"></div>
-    </div>
-  </div>
+  <!-- Tab: Sign & Publish -->
+  <div id="tab-sign" class="tab-content">
 
-  <!-- Step 3: Sign -->
-  <div class="step" id="step-sign">
-    <h2>3. Sign Document</h2>
-    <p style="font-size: 0.85rem; color: #8b949e; margin-bottom: 0.75rem;">
-      MetaMask will display the message to sign. Verify the document hash matches before approving.
-    </p>
-    <button id="btn-sign" onclick="signDocument()" disabled>Sign with MetaMask</button>
-    <div id="sign-info" class="info hidden">
-      <label>Signature</label>
-      <div class="value" id="sign-result" style="font-family: monospace; font-size: 0.8rem;"></div>
+    <!-- Fetch Draft -->
+    <div class="section" id="sec-draft">
+      <h2>1. Pending Draft</h2>
+      <button onclick="fetchDraftForSign()">Fetch Pending Draft</button>
+      <div id="sign-draft-info" class="info hidden">
+        <label>Registry ID</label>
+        <div class="value" id="draft-registry"></div>
+        <label style="margin-top:0.5rem;">Version</label>
+        <div class="value" id="draft-version"></div>
+        <label style="margin-top:0.5rem;">Nodes</label>
+        <div class="value" id="draft-nodes-count"></div>
+        <label style="margin-top:0.5rem;">Admins</label>
+        <div class="value" id="draft-admins"></div>
+        <label style="margin-top:0.5rem;">Document Hash</label>
+        <div class="value mono" id="draft-hash"></div>
+        <label style="margin-top:0.5rem;">Merkle Root</label>
+        <div class="value mono" id="draft-merkle"></div>
+      </div>
     </div>
-  </div>
 
-  <!-- Step 4: Submit -->
-  <div class="step" id="step-submit">
-    <h2>4. Submit Signature</h2>
-    <button id="btn-submit" onclick="submitSignature()" disabled>Submit to Server</button>
-    <div id="submit-info" class="info hidden">
-      <div id="submit-result"></div>
+    <!-- Sign -->
+    <div class="section" id="sec-sign">
+      <h2>2. Sign Document</h2>
+      <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+        MetaMask will display the message. Verify the document hash before approving.
+      </p>
+      <button id="btn-sign" onclick="signDoc()" disabled>Sign with MetaMask</button>
+      <div id="sign-info" class="info hidden">
+        <label>Signature</label>
+        <div class="value mono" id="sign-result"></div>
+      </div>
     </div>
-  </div>
 
-  <!-- Signature Status -->
-  <div class="step" id="step-status">
-    <h2>Signature Status</h2>
-    <div id="sig-status">
-      <span class="warning">No draft loaded</span>
+    <!-- Submit Signature -->
+    <div class="section" id="sec-submit">
+      <h2>3. Submit Signature</h2>
+      <button id="btn-submit" onclick="submitSig()" disabled>Submit to Server</button>
+      <div id="submit-msg"></div>
     </div>
-    <div id="sig-list" class="sig-list"></div>
+
+    <!-- Signature Status -->
+    <div class="section" id="sec-status">
+      <h2>Signature Status</h2>
+      <div id="sig-status"><span class="warning">No draft loaded</span></div>
+      <div id="sig-list" class="sig-list"></div>
+    </div>
+
+    <!-- Verify & Publish -->
+    <div class="section" id="sec-publish">
+      <h2>4. Verify & Publish</h2>
+      <button id="btn-verify" onclick="verifyDoc()" disabled>Verify Document</button>
+      <button id="btn-publish" class="purple" onclick="publishDoc()" disabled>Publish</button>
+      <div id="verify-info" class="info hidden">
+        <div id="verify-result"></div>
+      </div>
+      <div id="publish-msg"></div>
+    </div>
   </div>
 
   <script>
@@ -102,80 +234,230 @@
     let draft = null
     let signature = null
     let adminAddresses = []
+    let minSignatures = 2
 
+    // ── Tabs ──────────────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'))
+      document.querySelector(`.tab-content#tab-${name}`).classList.add('active')
+      document.querySelectorAll('.tab')[name === 'manage' ? 0 : 1].classList.add('active')
+    }
+
+    // ── Wallet ────────────────────────────────────────────────────────────
     async function connectWallet() {
-      if (!window.ethereum) {
-        alert('MetaMask is not installed. Please install it from metamask.io')
-        return
-      }
+      if (!window.ethereum) { alert('MetaMask not installed'); return }
       try {
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
         account = accounts[0]
         document.getElementById('wallet-address').textContent = account
-        document.getElementById('wallet-info').classList.remove('hidden')
-        document.getElementById('step-connect').classList.add('done')
+        document.getElementById('wallet-display').classList.remove('hidden')
+        document.getElementById('btn-connect').textContent = 'Connected'
         document.getElementById('btn-connect').disabled = true
+        document.getElementById('sec-connect').classList.add('done')
 
-        // Fetch health to check if this is a known admin
         const health = await fetch(`${API}/health`).then(r => r.json())
         adminAddresses = health.adminAddresses.map(a => a.address.toLowerCase())
+        minSignatures = health.adminAddresses.length >= 2 ? 2 : 1
         const isAdmin = adminAddresses.includes(account.toLowerCase())
-        const statusEl = document.getElementById('admin-status')
-        if (isAdmin) {
-          statusEl.innerHTML = '<span class="success">Known admin address</span>'
-        } else {
-          statusEl.innerHTML = '<span class="error-text">Not a recognized admin address</span>'
-        }
+        document.getElementById('admin-badge').innerHTML = isAdmin
+          ? ' <span class="badge badge-ok">Admin</span>'
+          : ' <span class="badge badge-revoked">Not Admin</span>'
 
-        document.getElementById('btn-fetch').disabled = false
+        document.getElementById('btn-sign').disabled = false
 
-        // Listen for account changes
         window.ethereum.on('accountsChanged', (accs) => {
-          if (accs.length === 0) {
-            location.reload()
-          } else {
-            account = accs[0]
-            document.getElementById('wallet-address').textContent = account
-            const isAdmin = adminAddresses.includes(account.toLowerCase())
-            statusEl.innerHTML = isAdmin
-              ? '<span class="success">Known admin address</span>'
-              : '<span class="error-text">Not a recognized admin address</span>'
-          }
+          if (accs.length === 0) { location.reload(); return }
+          account = accs[0]
+          document.getElementById('wallet-address').textContent = account
+          const isAdmin = adminAddresses.includes(account.toLowerCase())
+          document.getElementById('admin-badge').innerHTML = isAdmin
+            ? ' <span class="badge badge-ok">Admin</span>'
+            : ' <span class="badge badge-revoked">Not Admin</span>'
         })
-      } catch (e) {
-        alert('Failed to connect: ' + e.message)
-      }
+
+        loadCurrent()
+      } catch (e) { alert('Connect failed: ' + e.message) }
+    }
+
+    // ── Current Registry ──────────────────────────────────────────────────
+    async function loadCurrent() {
+      try {
+        const res = await fetch(`${API}/current`)
+        if (!res.ok) {
+          document.getElementById('current-info').classList.add('hidden')
+          return
+        }
+        const doc = await res.json()
+        document.getElementById('cur-version').textContent = 'v' + doc.version
+        document.getElementById('cur-nodes').textContent = doc.nodes.length + ' (' + doc.nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
+        document.getElementById('cur-admins').innerHTML = doc.adminAddresses.map(a =>
+          `<div class="mono" style="font-size:0.8rem;">${a}</div>`
+        ).join('')
+        document.getElementById('cur-expires').textContent = new Date(doc.expiresAt * 1000).toLocaleString()
+        document.getElementById('current-info').classList.remove('hidden')
+      } catch {}
+    }
+
+    // ── Draft Management ──────────────────────────────────────────────────
+    async function createDraft() {
+      try {
+        const res = await fetch(`${API}/pending`, { method: 'POST' })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('draft-msg', 'Draft created (v' + result.version + ')', true)
+          showDraftInfo()
+        } else {
+          showMsg('draft-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('draft-msg', e.message, false) }
     }
 
     async function fetchDraft() {
       try {
         const res = await fetch(`${API}/pending`)
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('draft-msg', 'Draft loaded (v' + result.version + ')', true)
+          showDraftInfo()
+        } else {
+          showMsg('draft-msg', result.message || 'No draft', false)
+        }
+      } catch (e) { showMsg('draft-msg', e.message, false) }
+    }
+
+    async function deleteDraft() {
+      if (!confirm('Delete the pending draft?')) return
+      try {
+        const res = await fetch(`${API}/pending`, { method: 'DELETE' })
+        if (res.ok) {
+          draft = null
+          showMsg('draft-msg', 'Draft deleted', true)
+          document.getElementById('manage-draft-info').classList.add('hidden')
+        } else {
+          showMsg('draft-msg', 'Failed to delete', false)
+        }
+      } catch (e) { showMsg('draft-msg', e.message, false) }
+    }
+
+    function showDraftInfo() {
+      if (!draft) return
+      document.getElementById('mgmt-draft-version').textContent = 'v' + draft.version
+      document.getElementById('mgmt-draft-nodes').textContent = draft.nodes.length + ' node(s)'
+      document.getElementById('mgmt-draft-hash').textContent = draft.documentHash
+      document.getElementById('mgmt-draft-sigs').textContent = draft.signatures.length + '/' + minSignatures
+      document.getElementById('manage-draft-info').classList.remove('hidden')
+    }
+
+    // ── Enroll ────────────────────────────────────────────────────────────
+    async function enrollNode() {
+      const ikPub = document.getElementById('enroll-ikpub').value.trim()
+      const ekPub = document.getElementById('enroll-ekpub').value.trim()
+      const role = document.getElementById('enroll-role').value
+      const walletScope = document.getElementById('enroll-wallets').value.split(',').map(s => s.trim()).filter(Boolean)
+
+      if (!ikPub || !ekPub || !walletScope.length) {
+        showMsg('enroll-msg', 'All fields are required', false); return
+      }
+
+      try {
+        const res = await fetch(`${API}/nodes/enroll`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ikPub, ekPub, role, walletScope }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result.draft
+          showMsg('enroll-msg', 'Node enrolled! ID: ' + result.nodeId, true)
+          showDraftInfo()
+          document.getElementById('enroll-ikpub').value = ''
+          document.getElementById('enroll-ekpub').value = ''
+          document.getElementById('enroll-wallets').value = ''
+        } else {
+          showMsg('enroll-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('enroll-msg', e.message, false) }
+    }
+
+    // ── Revoke ────────────────────────────────────────────────────────────
+    async function revokeNode() {
+      const nodeId = document.getElementById('revoke-nodeid').value.trim()
+      const reason = document.getElementById('revoke-reason').value.trim()
+      if (!nodeId || !reason) {
+        showMsg('revoke-msg', 'Node ID and reason are required', false); return
+      }
+
+      try {
+        const res = await fetch(`${API}/nodes/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nodeId, reason }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('revoke-msg', 'Revocation proposed', true)
+          showDraftInfo()
+          document.getElementById('revoke-nodeid').value = ''
+          document.getElementById('revoke-reason').value = ''
+        } else {
+          showMsg('revoke-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('revoke-msg', e.message, false) }
+    }
+
+    // ── Node List ─────────────────────────────────────────────────────────
+    async function loadNodes() {
+      try {
+        const res = await fetch(`${API}/nodes`)
+        const nodes = await res.json()
+        const el = document.getElementById('node-list')
+        if (!nodes.length) { el.innerHTML = '<div style="color:#8b949e; margin-top:0.5rem;">No nodes</div>'; return }
+        el.innerHTML = nodes.map(n => `
+          <div class="node-item">
+            <div><strong>${n.role}</strong> <span class="badge ${n.status === 'ACTIVE' ? 'badge-active' : 'badge-revoked'}">${n.status}</span></div>
+            <div class="mono" style="margin-top:0.25rem; font-size:0.75rem;">ID: ${n.nodeId}</div>
+            <div class="mono" style="font-size:0.75rem;">ikPub: ${n.ikPub.substring(0,16)}...</div>
+            <div style="font-size:0.75rem; color:#8b949e;">Wallets: ${n.walletScope.join(', ')}</div>
+            ${n.status === 'ACTIVE' ? `<button class="danger" style="margin-top:0.5rem; font-size:0.75rem; padding:0.25rem 0.75rem;" onclick="document.getElementById('revoke-nodeid').value='${n.nodeId}';">Revoke</button>` : ''}
+          </div>
+        `).join('')
+      } catch (e) { document.getElementById('node-list').innerHTML = '<span class="error-text">' + e.message + '</span>' }
+    }
+
+    // ── Sign Tab: Fetch Draft ─────────────────────────────────────────────
+    async function fetchDraftForSign() {
+      try {
+        const res = await fetch(`${API}/pending`)
         if (!res.ok) {
           const err = await res.json()
-          alert('Failed to fetch draft: ' + (err.message || res.statusText))
+          alert(err.message || 'No pending draft')
           return
         }
         draft = await res.json()
         document.getElementById('draft-registry').textContent = draft.registryId
         document.getElementById('draft-version').textContent = 'v' + draft.version
-        document.getElementById('draft-nodes').textContent = draft.nodes.length + ' node(s)'
+        document.getElementById('draft-nodes-count').textContent = draft.nodes.length + ' node(s)'
+        document.getElementById('draft-admins').innerHTML = draft.adminAddresses.map(a =>
+          `<div class="mono" style="font-size:0.8rem;">${a}</div>`
+        ).join('')
         document.getElementById('draft-hash').textContent = draft.documentHash
         document.getElementById('draft-merkle').textContent = draft.merkleRoot
-        document.getElementById('draft-info').classList.remove('hidden')
-        document.getElementById('step-draft').classList.add('done')
+        document.getElementById('sign-draft-info').classList.remove('hidden')
+        document.getElementById('sec-draft').classList.add('done')
         document.getElementById('btn-sign').disabled = false
-
         updateSigStatus()
-      } catch (e) {
-        alert('Error: ' + e.message)
-      }
+      } catch (e) { alert(e.message) }
     }
 
-    async function signDocument() {
+    // ── Sign Tab: Sign ────────────────────────────────────────────────────
+    async function signDoc() {
       if (!account || !draft) return
       try {
         const message = `MPC Registry Sign\ndocumentHash:${draft.documentHash}`
-        // personal_sign expects hex-encoded message
         const hexMessage = '0x' + Array.from(new TextEncoder().encode(message))
           .map(b => b.toString(16).padStart(2, '0')).join('')
 
@@ -186,14 +468,13 @@
 
         document.getElementById('sign-result').textContent = signature
         document.getElementById('sign-info').classList.remove('hidden')
-        document.getElementById('step-sign').classList.add('done')
+        document.getElementById('sec-sign').classList.add('done')
         document.getElementById('btn-submit').disabled = false
-      } catch (e) {
-        alert('Signing failed: ' + e.message)
-      }
+      } catch (e) { alert('Signing failed: ' + e.message) }
     }
 
-    async function submitSignature() {
+    // ── Sign Tab: Submit ──────────────────────────────────────────────────
+    async function submitSig() {
       if (!signature || !draft || !account) return
       try {
         const res = await fetch(`${API}/pending/sign`, {
@@ -206,45 +487,101 @@
           }),
         })
         const result = await res.json()
-        const resultEl = document.getElementById('submit-result')
-        document.getElementById('submit-info').classList.remove('hidden')
-
         if (res.ok) {
           draft = result
-          resultEl.innerHTML = '<span class="success">Signature accepted!</span>'
-          document.getElementById('step-submit').classList.add('done')
+          showMsg('submit-msg', 'Signature accepted!', true)
+          document.getElementById('sec-submit').classList.add('done')
           document.getElementById('btn-submit').disabled = true
-          document.getElementById('btn-sign').disabled = true
+          // Re-enable sign for next admin
+          document.getElementById('btn-sign').disabled = false
+          signature = null
+          document.getElementById('sign-info').classList.add('hidden')
+          document.getElementById('sec-sign').classList.remove('done')
           updateSigStatus()
         } else {
-          resultEl.innerHTML = '<span class="error-text">Rejected: ' + (result.message || 'Unknown error') + '</span>'
-          document.getElementById('step-submit').classList.add('error')
+          showMsg('submit-msg', result.message || 'Rejected', false)
         }
-      } catch (e) {
-        alert('Submit failed: ' + e.message)
-      }
+      } catch (e) { showMsg('submit-msg', e.message, false) }
     }
 
+    // ── Sign Tab: Verify & Publish ────────────────────────────────────────
+    async function verifyDoc() {
+      if (!draft) return
+      try {
+        const res = await fetch(`${API}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draft),
+        })
+        const result = await res.json()
+        const el = document.getElementById('verify-result')
+        document.getElementById('verify-info').classList.remove('hidden')
+
+        const stepsHtml = result.steps.map(s =>
+          `<div style="margin-top:0.25rem;">${s.passed ? '<span class="success">PASS</span>' : '<span class="error-text">FAIL</span>'} <strong>${s.step}</strong>: ${s.detail}</div>`
+        ).join('')
+
+        if (result.valid) {
+          el.innerHTML = '<span class="success">All verification steps passed!</span><div style="margin-top:0.75rem;">' + stepsHtml + '</div>'
+          document.getElementById('btn-publish').disabled = false
+        } else {
+          el.innerHTML = '<span class="error-text">Verification failed</span><div style="margin-top:0.75rem;">' + stepsHtml + '</div>'
+        }
+      } catch (e) { alert('Verify failed: ' + e.message) }
+    }
+
+    async function publishDoc() {
+      if (!draft) return
+      if (!confirm('Publish this document? This will make it the active registry version.')) return
+      try {
+        const res = await fetch(`${API}/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draft),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          showMsg('publish-msg', 'Published! Version ' + result.version + ' is now active.', true)
+          document.getElementById('btn-publish').disabled = true
+          document.getElementById('btn-verify').disabled = true
+          document.getElementById('sec-publish').classList.add('done')
+          draft = null
+          loadCurrent()
+        } else {
+          showMsg('publish-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('publish-msg', e.message, false) }
+    }
+
+    // ── Signature Status ──────────────────────────────────────────────────
     function updateSigStatus() {
       if (!draft) return
       const statusEl = document.getElementById('sig-status')
       const listEl = document.getElementById('sig-list')
       const count = draft.signatures.length
-      const needed = 2 // MIN_SIGNATURES
 
-      if (count >= needed) {
-        statusEl.innerHTML = `<span class="success">${count}/${needed} signatures — ready to publish!</span>`
+      if (count >= minSignatures) {
+        statusEl.innerHTML = `<span class="success">${count}/${minSignatures} signatures — ready to publish!</span>`
+        document.getElementById('btn-verify').disabled = false
       } else {
-        statusEl.innerHTML = `<span class="warning">${count}/${needed} signatures — ${needed - count} more needed</span>`
+        statusEl.innerHTML = `<span class="warning">${count}/${minSignatures} signatures — ${minSignatures - count} more needed</span>`
+        document.getElementById('btn-verify').disabled = true
       }
 
       listEl.innerHTML = draft.signatures.map(s =>
         `<div class="sig-item">
           <span class="addr">${s.adminAddress}</span>
           <span class="badge badge-ok">signed</span>
-          <div style="margin-top: 0.25rem; color: #8b949e; font-size: 0.75rem;">${s.signature.substring(0, 42)}...</div>
+          <div style="margin-top:0.25rem; color:#8b949e; font-size:0.75rem;">${s.signature.substring(0, 42)}...</div>
         </div>`
       ).join('')
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function showMsg(id, text, success) {
+      const el = document.getElementById(id)
+      el.innerHTML = `<div class="msg ${success ? 'msg-success' : 'msg-error'}">${success ? '<span class="success">' : '<span class="error-text">'}${text}</span></div>`
+      setTimeout(() => { if (el.querySelector('.msg')) el.innerHTML = '' }, 8000)
     }
   </script>
 </body>

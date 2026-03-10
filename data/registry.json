@@ -1,8 +1,8 @@
 {
   "registryId": "dev-custody-v1",
-  "version": 1,
-  "issuedAt": 1773182399,
-  "expiresAt": 1773787199,
+  "version": 3,
+  "issuedAt": 1773183191,
+  "expiresAt": 1773787991,
   "adminAddresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
@@ -10,16 +10,16 @@
   ],
   "nodes": [],
   "merkleRoot": "2e1cfa82b035c26cbbbdae632cea070514eb8b773f616aaeaf668e2f0be8f10d",
-  "prevDocumentHash": null,
-  "documentHash": "dfdf12a1c66e6aa11fa22fddb1f1bc3c0435e2f52dfe51e97b3251c6c4213d4a",
+  "prevDocumentHash": "f6a066da4306754c102f86ab8b67cd4e5066c90bca69f5e1cdf5ba9d0f5fdf63",
+  "documentHash": "20a46e214509f9dc17b00278c0324c7e498ebebb8f961c134f40bc17d7b8f45d",
   "signatures": [
     {
-      "adminAddress": "0xD9326707b2aeEc9f9155828A0904894912367466",
-      "signature": "0x8ad3cb03b8f722ecbcea3f5d6aeb68b1bfaf2de288dc37a6a41f52940446ed8730fbae52e1fca642f285d19df5e766245f7bd35c008703f9aefb64cddebe2aad1b"
+      "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
+      "signature": "0x4fa56909bb527eff394c3d86fd1ac557465cd8e627fb864eb4086f0a6875a7bb15600af49f679bfc61042cc8817f70eaf8df96b3820b39f392f61123630fdf041b"
     },
     {
-      "adminAddress": "0x131A53611d8a9b2b20d44304be222fF9c64A3ab0",
-      "signature": "0x6afb2981b89b89c36286140bca19e33693550949a1a95714152d0332569ff34514533a81f5684e7dfed2b3a390ac81e3fdef26ebeea441644112891ae3d943321b"
+      "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
+      "signature": "0x1a5008bcc2a8852296a8ac629b86c09735169bdca4ef1fead0aeedd297a758c54c528d1126969317e4d489574fb8bd34949df71e46cb116f0db88f17f36940bb1b"
     }
   ]
 }
