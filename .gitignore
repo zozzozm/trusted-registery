@@ -5,3 +5,4 @@ dist/
 data/draft-*.json
 *.log
 coverage/
+.claude/settings.local.json
