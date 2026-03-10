@@ -1,6 +1,6 @@
 {
   "registryId": "dev-custody-v1",
-  "version": 5,
+  "version": 6,
   "issuedAt": 1773100824,
   "expiresAt": 1773705624,
   "nodes": [
