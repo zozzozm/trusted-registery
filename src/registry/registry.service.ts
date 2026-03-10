@@ -12,7 +12,7 @@ import {
 } from '../common/types'
 import {
   computeDocumentHash, computeMerkleRoot, verifyMultiSig,
-  verifyHex, deriveNodeId, hashObject
+  verifySingleSig, deriveNodeId
 } from '../common/crypto'
 import { CONFIG } from '../common/config'
 
@@ -56,35 +56,36 @@ export class RegistryService implements OnModuleInit {
   }
 
   /** POST /registry/pending/sign — add one admin signature to the staged draft */
-  signPendingDocument(body: { adminIndex: number; signature: string; documentHash?: string }): RegistryDocument {
+  signPendingDocument(body: { adminAddress: string; signature: string; documentHash?: string }): RegistryDocument {
     if (!this.stagedDraft) throw new NotFoundException('No pending document. Call GET /registry/pending first.')
 
-    const { adminIndex, signature, documentHash } = body
+    const { adminAddress, signature, documentHash } = body
 
     // If caller provided documentHash, verify it matches the current draft
     if (documentHash && documentHash !== this.stagedDraft.documentHash) {
       throw new ConflictException('documentHash does not match the current draft. The draft may have been modified.')
     }
 
-    // Validate adminIndex
-    const pubKey = CONFIG.ADMIN_KEYS[adminIndex]
-    if (pubKey === undefined) throw new BadRequestException(`Unknown adminIndex: ${adminIndex}`)
+    // Validate adminAddress is a known admin
+    const adminAddresses = CONFIG.ADMIN_ADDRESSES
+    const isKnownAdmin = adminAddresses.some(a => a.toLowerCase() === adminAddress.toLowerCase())
+    if (!isKnownAdmin) throw new BadRequestException(`Unknown admin address: ${adminAddress}`)
 
     // Check for duplicate
-    if (this.stagedDraft.signatures.some(s => s.adminIndex === adminIndex)) {
-      throw new ConflictException(`Admin ${adminIndex} has already signed this draft`)
+    if (this.stagedDraft.signatures.some(s => s.adminAddress.toLowerCase() === adminAddress.toLowerCase())) {
+      throw new ConflictException(`Admin ${adminAddress} has already signed this draft`)
     }
 
-    // Validate signature format
-    if (!/^[0-9a-f]{128}$/i.test(signature)) {
-      throw new BadRequestException('Signature must be 128 hex chars (64 bytes)')
+    // Validate signature format (0x + 130 hex chars)
+    if (!/^0x[0-9a-f]{130}$/i.test(signature)) {
+      throw new BadRequestException('Signature must be 0x-prefixed 65 bytes hex (132 chars)')
     }
 
-    // Verify signature against documentHash
-    const ok = verifyHex(this.stagedDraft.documentHash, signature, pubKey)
+    // Verify signature against documentHash using ecrecover
+    const ok = verifySingleSig(this.stagedDraft.documentHash, signature, adminAddress)
     if (!ok) throw new BadRequestException('Signature verification failed')
 
-    this.stagedDraft.signatures.push({ adminIndex, signature })
+    this.stagedDraft.signatures.push({ adminAddress, signature })
 
     // Lock draft after first signature to prevent TOCTOU
     this.draftLocked = true
@@ -120,9 +121,9 @@ export class RegistryService implements OnModuleInit {
       activeNodes: doc?.nodes.filter(n => n.status === 'ACTIVE').length ?? 0,
       expiresAt:   doc?.expiresAt ?? null,
       expired:     doc ? Math.floor(Date.now() / 1000) > doc.expiresAt : null,
-      adminKeys:   CONFIG.ADMIN_KEYS.map((k, i) => ({
-        index:       i,
-        pubKey:      k.substring(0, 16) + '...',
+      adminAddresses: CONFIG.ADMIN_ADDRESSES.map((a, i) => ({
+        index:   i,
+        address: a,
       })),
     }
   }
@@ -198,11 +199,11 @@ export class RegistryService implements OnModuleInit {
     // Step 6 — Hash chain
     if (this.currentDoc) {
       if (doc.version <= this.currentDoc.version) {
-        fail('hashChain', `Version ${doc.version} ≤ current ${this.currentDoc.version} — rollback`)
+        fail('hashChain', `Version ${doc.version} <= current ${this.currentDoc.version} — rollback`)
       } else if (doc.prevDocumentHash !== this.currentDoc.documentHash) {
         fail('hashChain', `prevDocumentHash does not match current document hash`)
       } else {
-        pass('hashChain', `Chain intact: v${this.currentDoc.version} → v${doc.version}`)
+        pass('hashChain', `Chain intact: v${this.currentDoc.version} -> v${doc.version}`)
       }
     } else {
       pass('hashChain', 'No previous version — this is the genesis document')
@@ -212,18 +213,18 @@ export class RegistryService implements OnModuleInit {
     const sigResult = verifyMultiSig(
       doc.documentHash,
       doc.signatures,
-      CONFIG.ADMIN_KEYS,
+      CONFIG.ADMIN_ADDRESSES,
       CONFIG.MIN_SIGNATURES
     )
     if (!sigResult.valid) {
       fail('signatures', sigResult.reason!)
     } else {
-      const signers = (doc.signatures as AdminSignature[]).map(s => `admin[${s.adminIndex}]`).join(', ')
+      const signers = (doc.signatures as AdminSignature[]).map(s => s.adminAddress.substring(0, 10) + '...').join(', ')
       pass('signatures', `${doc.signatures.length} valid signatures from: ${signers}`)
     }
 
     const allPassed = steps.every(s => s.passed)
-    return { valid: allPassed, steps, summary: allPassed ? '✓ Document is valid' : '✗ Document failed verification' }
+    return { valid: allPassed, steps, summary: allPassed ? 'Document is valid' : 'Document failed verification' }
   }
 
   // ══════════════════════════════════════════════════════════════════════════

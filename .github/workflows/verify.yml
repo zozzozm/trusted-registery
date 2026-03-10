@@ -18,9 +18,9 @@ jobs:
       - run: npm ci
       - name: Verify registry document signatures
         env:
-          ADMIN_KEY_0_PUB: ${{ secrets.ADMIN_KEY_0_PUB }}
-          ADMIN_KEY_1_PUB: ${{ secrets.ADMIN_KEY_1_PUB }}
-          ADMIN_KEY_2_PUB: ${{ secrets.ADMIN_KEY_2_PUB }}
+          ADMIN_ADDRESS_0: ${{ secrets.ADMIN_ADDRESS_0 }}
+          ADMIN_ADDRESS_1: ${{ secrets.ADMIN_ADDRESS_1 }}
+          ADMIN_ADDRESS_2: ${{ secrets.ADMIN_ADDRESS_2 }}
           REGISTRY_ID:     ${{ secrets.REGISTRY_ID || 'dev-custody-v1' }}
           MIN_SIGNATURES:  '2'
           REGISTRY_FILE:   './data/registry.json'

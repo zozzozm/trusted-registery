@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, ValidateNested, IsIn, IsOptional, Min } from 'class-validator'
+import { IsString, IsNumber, IsArray, ValidateNested, IsIn, IsOptional, Matches } from 'class-validator'
 import { Type } from 'class-transformer'
 
 class NodeRecordDto {
@@ -30,9 +30,8 @@ class NodeRecordDto {
 }
 
 class AdminSignatureDto {
-  @IsNumber()
-  @Min(0)
-  adminIndex: number
+  @Matches(/^0x[0-9a-fA-F]{40}$/, { message: 'adminAddress must be a valid Ethereum address' })
+  adminAddress: string
 
   @IsString()
   signature: string

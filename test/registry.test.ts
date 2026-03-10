@@ -1,26 +1,37 @@
+// Set env vars BEFORE any imports that read config
+import { unlinkSync } from 'fs'
+
+const TEST_REGISTRY_FILE = '/tmp/test-registry-jest.json'
+try { unlinkSync(TEST_REGISTRY_FILE) } catch {}
+process.env.REGISTRY_FILE = TEST_REGISTRY_FILE
+process.env.REGISTRY_ID = 'test-registry-v1'
+process.env.MIN_SIGNATURES = '2'
+
 import * as dotenv from 'dotenv'
 dotenv.config({ path: '.env.test' })
 import { Test } from '@nestjs/testing'
 import { INestApplication, ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
+import { ethers } from 'ethers'
 import { AppModule } from '../src/app.module'
-import { generateKeypair, signHex, computeDocumentHash, computeMerkleRoot } from '../src/common/crypto'
+import { signDocument, computeDocumentHash, computeMerkleRoot, buildSignMessage } from '../src/common/crypto'
 import { RegistryDocument, UnsignedDocument } from '../src/common/types'
 
-let adminKeys: Array<{ pubKey: string; privKey: string }> = []
+let wallets: ethers.HDNodeWallet[] = []
 let app: INestApplication
 
 beforeAll(async () => {
-  adminKeys = await Promise.all([generateKeypair(), generateKeypair(), generateKeypair()])
-  process.env.ADMIN_KEY_0_PUB      = adminKeys[0].pubKey
-  process.env.ADMIN_KEY_1_PUB      = adminKeys[1].pubKey
-  process.env.ADMIN_KEY_2_PUB      = adminKeys[2].pubKey
-  process.env.DEV_ADMIN_KEY_0_PRIV = adminKeys[0].privKey
-  process.env.DEV_ADMIN_KEY_1_PRIV = adminKeys[1].privKey
-  process.env.DEV_ADMIN_KEY_2_PRIV = adminKeys[2].privKey
-  process.env.REGISTRY_ID   = 'test-registry-v1'
-  process.env.MIN_SIGNATURES = '2'
-  process.env.REGISTRY_FILE  = '/tmp/test-registry-jest.json'
+  wallets = [
+    ethers.Wallet.createRandom(),
+    ethers.Wallet.createRandom(),
+    ethers.Wallet.createRandom(),
+  ]
+  process.env.ADMIN_ADDRESS_0      = wallets[0].address
+  process.env.ADMIN_ADDRESS_1      = wallets[1].address
+  process.env.ADMIN_ADDRESS_2      = wallets[2].address
+  process.env.DEV_ADMIN_PRIVKEY_0  = wallets[0].privateKey
+  process.env.DEV_ADMIN_PRIVKEY_1  = wallets[1].privateKey
+  process.env.DEV_ADMIN_PRIVKEY_2  = wallets[2].privateKey
 
   const mod = await Test.createTestingModule({ imports: [AppModule] }).compile()
   app = mod.createNestApplication()
@@ -40,11 +51,12 @@ async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<Regi
     ...overrides,
   }
   u.documentHash = computeDocumentHash(u)
+  const message = buildSignMessage(u.documentHash)
   return {
     ...u,
     signatures: [
-      { adminIndex: 0, signature: await signHex(u.documentHash, adminKeys[0].privKey) },
-      { adminIndex: 1, signature: await signHex(u.documentHash, adminKeys[1].privKey) },
+      { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
+      { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
     ]
   }
 }
@@ -72,9 +84,10 @@ describe('Verify — each failure case', () => {
       prevDocumentHash: d.prevDocumentHash, documentHash: '',
     }
     d.documentHash = computeDocumentHash(unsigned)
+    const message = buildSignMessage(d.documentHash)
     d.signatures = [
-      { adminIndex:0, signature: await signHex(d.documentHash, adminKeys[0].privKey) },
-      { adminIndex:1, signature: await signHex(d.documentHash, adminKeys[1].privKey) },
+      { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
+      { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
     ]
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send(d)
     expect(r.body.steps.find((s:any) => s.step==='expiry').passed).toBe(false)
@@ -121,11 +134,12 @@ describe('Full publish flow', () => {
   })
   it('sign and publish enrollment', async () => {
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
+    const message = buildSignMessage(pending.documentHash)
     const signed: RegistryDocument = {
       ...pending,
       signatures: [
-        { adminIndex:0, signature: await signHex(pending.documentHash, adminKeys[0].privKey) },
-        { adminIndex:1, signature: await signHex(pending.documentHash, adminKeys[1].privKey) },
+        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
+        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
       ]
     }
     const r = await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
@@ -140,33 +154,26 @@ describe('Full publish flow', () => {
 
 describe('Security', () => {
   it('draft locked during signing — rejects enroll after sign', async () => {
-    // Clear any existing draft
     await request(app.getHttpServer()).delete('/api/registry/pending')
-    // Enroll a node to create a draft
     await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: 'c'.repeat(64), ekPub: 'd'.repeat(64),
       role: 'USER_COSIGNER', walletScope: ['wallet-002'],
     })
-    // Sign with admin 0
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
-    const sig = await signHex(pending.documentHash, adminKeys[0].privKey)
+    const sig = await signDocument(pending.documentHash, wallets[0].privateKey)
     await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminIndex: 0, signature: sig,
+      adminAddress: wallets[0].address, signature: sig,
     })
-    // Now try to enroll another node — should be rejected (draft locked)
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: 'e'.repeat(64), ekPub: 'f'.repeat(64),
       role: 'USER_COSIGNER', walletScope: ['wallet-003'],
     })
     expect(r.status).toBe(409)
-    // Clean up
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
 
   it('revoked node re-enrollment blocked', async () => {
-    // Clear draft
     await request(app.getHttpServer()).delete('/api/registry/pending')
-    // The node from the publish flow is 'a'.repeat(64) — revoke it
     const currentNodes = (await request(app.getHttpServer()).get('/api/registry/nodes')).body
     const activeNode = currentNodes.find((n: any) => n.status === 'ACTIVE')
     if (!activeNode) throw new Error('No active node to revoke')
@@ -174,18 +181,17 @@ describe('Security', () => {
     await request(app.getHttpServer()).post('/api/registry/nodes/revoke').send({
       nodeId: activeNode.nodeId, reason: 'test revocation',
     })
-    // Sign and publish the revocation
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
+    const message = buildSignMessage(pending.documentHash)
     const signed: RegistryDocument = {
       ...pending,
       signatures: [
-        { adminIndex: 0, signature: await signHex(pending.documentHash, adminKeys[0].privKey) },
-        { adminIndex: 1, signature: await signHex(pending.documentHash, adminKeys[1].privKey) },
+        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
+        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
       ]
     }
     await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
 
-    // Now try to re-enroll the same ikPub — should be blocked
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: activeNode.ikPub, ekPub: activeNode.ekPub,
       role: activeNode.role, walletScope: activeNode.walletScope,
@@ -200,17 +206,16 @@ describe('Security', () => {
   })
 
   it('field injection stripped — extra fields not persisted', async () => {
-    // Clear draft
     await request(app.getHttpServer()).delete('/api/registry/pending')
-    // Create a draft via pending
     await request(app.getHttpServer()).post('/api/registry/pending')
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
+    const message = buildSignMessage(pending.documentHash)
     const docWithExtra = {
       ...pending,
       malicious: 'data',
       signatures: [
-        { adminIndex: 0, signature: await signHex(pending.documentHash, adminKeys[0].privKey) },
-        { adminIndex: 1, signature: await signHex(pending.documentHash, adminKeys[1].privKey) },
+        { adminAddress: wallets[0].address, signature: await wallets[0].signMessage(message) },
+        { adminAddress: wallets[1].address, signature: await wallets[1].signMessage(message) },
       ]
     }
     const r = await request(app.getHttpServer()).post('/api/registry/publish').send(docWithExtra)
@@ -221,15 +226,12 @@ describe('Security', () => {
   })
 
   it('nodeId collision check', async () => {
-    // This is hard to trigger naturally since nodeId includes timestamp,
-    // but we verify the service rejects it via the duplicate ikPub check
     await request(app.getHttpServer()).delete('/api/registry/pending')
     const r1 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '1'.repeat(64), ekPub: '2'.repeat(64),
       role: 'RECOVERY_GUARDIAN', walletScope: ['wallet-x'],
     })
     expect(r1.status).toBe(200)
-    // Same ikPub — should fail
     const r2 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '1'.repeat(64), ekPub: '3'.repeat(64),
       role: 'RECOVERY_GUARDIAN', walletScope: ['wallet-y'],
@@ -238,41 +240,32 @@ describe('Security', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
 
-  it('adminIndex validation — rejects invalid values', async () => {
+  it('adminAddress validation — rejects invalid values', async () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/pending')
-    const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
 
-    // Negative index
+    // Invalid address format
     const r1 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminIndex: -1, signature: 'a'.repeat(128),
+      adminAddress: 'not-an-address', signature: '0x' + 'a'.repeat(130),
     })
     expect(r1.status).toBe(400)
 
-    // Float
+    // Missing 0x prefix on address
     const r2 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminIndex: 1.5, signature: 'a'.repeat(128),
+      adminAddress: 'a'.repeat(40), signature: '0x' + 'a'.repeat(130),
     })
     expect(r2.status).toBe(400)
-
-    // String
-    const r3 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminIndex: 'abc', signature: 'a'.repeat(128),
-    })
-    expect(r3.status).toBe(400)
 
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
 
   it('walletScope validation — rejects invalid values', async () => {
-    // Array of numbers
     const r1 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '5'.repeat(64), ekPub: '6'.repeat(64),
       role: 'USER_COSIGNER', walletScope: [123],
     })
     expect(r1.status).toBe(400)
 
-    // Empty array
     const r2 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '5'.repeat(64), ekPub: '6'.repeat(64),
       role: 'USER_COSIGNER', walletScope: [],
@@ -285,9 +278,9 @@ describe('Security', () => {
     await request(app.getHttpServer()).post('/api/registry/pending')
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
 
-    const sig = await signHex(pending.documentHash, adminKeys[0].privKey)
+    const sig = await signDocument(pending.documentHash, wallets[0].privateKey)
     const r = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminIndex: 0, signature: sig, documentHash: 'wrong_hash_value',
+      adminAddress: wallets[0].address, signature: sig, documentHash: 'wrong_hash_value',
     })
     expect(r.status).toBe(409)
 

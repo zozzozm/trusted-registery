@@ -13,8 +13,8 @@ export interface NodeRecord {
 }
 
 export interface AdminSignature {
-  adminIndex: number
-  signature:  string
+  adminAddress: string
+  signature:    string
 }
 
 export interface RegistryDocument {

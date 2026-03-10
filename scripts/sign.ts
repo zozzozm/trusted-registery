@@ -1,5 +1,5 @@
 #!/usr/bin/env ts-node
-// scripts/sign.ts — signs a pending document draft fetched from the server
+// scripts/sign.ts — signs a pending document draft using an Ethereum wallet
 //
 // Usage:
 //   # Sign with admin 0:
@@ -9,17 +9,18 @@
 //   ADMIN_INDEX=1 DRAFT_FILE=./my-draft.json npm run sign
 //
 //   # Sign and immediately publish to the server:
-//   ADMIN_INDEX=0 AUTO_SIGN_SECOND=true npm run sign
+//   ADMIN_INDEX=0 AUTO_PUBLISH=true npm run sign
 
 import * as dotenv from 'dotenv'
 dotenv.config()
 
-import { signHex, verifyHex } from '../src/common/crypto'
+import { ethers } from 'ethers'
+import { buildSignMessage, verifySingleSig } from '../src/common/crypto'
 import { CONFIG } from '../src/common/config'
 import { writeFileSync, readFileSync, existsSync } from 'fs'
 
 async function main() {
-  const adminIndex = parseInt(process.env.ADMIN_INDEX ?? '1')
+  const adminIndex = parseInt(process.env.ADMIN_INDEX ?? '0')
   const draftFile  = process.env.DRAFT_FILE ?? `./data/draft-pending.json`
   const serverUrl  = process.env.SERVER_URL ?? `http://localhost:${CONFIG.PORT}/api`
 
@@ -27,15 +28,18 @@ async function main() {
 
   // Load private key
   const privKeys = [
-    CONFIG.DEV_ADMIN_KEY_0_PRIV,
-    CONFIG.DEV_ADMIN_KEY_1_PRIV,
-    CONFIG.DEV_ADMIN_KEY_2_PRIV,
+    CONFIG.DEV_ADMIN_PRIVKEY_0,
+    CONFIG.DEV_ADMIN_PRIVKEY_1,
+    CONFIG.DEV_ADMIN_PRIVKEY_2,
   ]
   const privKey = privKeys[adminIndex]
   if (!privKey) {
-    console.error(`DEV_ADMIN_KEY_${adminIndex}_PRIV not set in .env`)
+    console.error(`DEV_ADMIN_PRIVKEY_${adminIndex} not set in .env`)
     process.exit(1)
   }
+
+  const wallet = new ethers.Wallet(privKey)
+  console.log(`Wallet address: ${wallet.address}`)
 
   // Fetch or load the draft
   let draft: any
@@ -55,14 +59,14 @@ async function main() {
   console.log(`Nodes:         ${draft.nodes?.length ?? 0}`)
   console.log()
 
-  // Sign the documentHash
-  const sig = await signHex(draft.documentHash, privKey)
+  // Sign the documentHash using EIP-191 personal_sign
+  const message = buildSignMessage(draft.documentHash)
+  const sig = await wallet.signMessage(message)
   console.log(`Signature:  ${sig.substring(0,32)}...`)
 
   // Self-verify
-  const pubKey = CONFIG.ADMIN_KEYS[adminIndex]
-  const ok = verifyHex(draft.documentHash, sig, pubKey)
-  console.log(`Self-verify: ${ok ? '✓ passed' : '✗ FAILED'}`)
+  const ok = verifySingleSig(draft.documentHash, sig, wallet.address)
+  console.log(`Self-verify: ${ok ? 'passed' : 'FAILED'}`)
   if (!ok) { console.error('Signature failed self-verification!'); process.exit(1) }
 
   // Post signature to the server if running
@@ -71,11 +75,11 @@ async function main() {
     const signRes = await fetch(`${serverUrl}/registry/pending/sign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminIndex, signature: sig, documentHash: draft.documentHash }),
+      body: JSON.stringify({ adminAddress: wallet.address, signature: sig, documentHash: draft.documentHash }),
     })
     if (signRes.ok) {
       draft = await signRes.json() as any
-      console.log(`✓ Signature accepted by server`)
+      console.log(`Signature accepted by server`)
     } else {
       const err = await signRes.json() as any
       console.error(`Server rejected signature:`, err.message)
@@ -84,26 +88,25 @@ async function main() {
   } else {
     // Merge signature into the draft file
     const existing = draft.signatures ?? []
-    if (existing.find((s: any) => s.adminIndex === adminIndex)) {
-      console.log(`⚠️  Admin ${adminIndex} already signed this draft`)
+    if (existing.find((s: any) => s.adminAddress?.toLowerCase() === wallet.address.toLowerCase())) {
+      console.log(`Admin ${wallet.address} already signed this draft`)
     } else {
-      existing.push({ adminIndex, signature: sig })
+      existing.push({ adminAddress: wallet.address, signature: sig })
       draft.signatures = existing
     }
   }
 
   // Save
-  const outFile = draftFile.replace('.json', `.json`)
-  writeFileSync(outFile, JSON.stringify(draft, null, 2))
-  console.log(`\n✓ Saved to ${outFile}`)
+  writeFileSync(draftFile, JSON.stringify(draft, null, 2))
+  console.log(`\nSaved to ${draftFile}`)
   console.log(`  Signatures so far: ${draft.signatures.length}/${CONFIG.MIN_SIGNATURES} required`)
 
   if (draft.signatures.length >= CONFIG.MIN_SIGNATURES) {
-    console.log('\n✓ Threshold reached! Ready to publish.')
+    console.log('\nThreshold reached! Ready to publish.')
     console.log(`\nPublish with:`)
     console.log(`  curl -X POST ${serverUrl}/registry/publish \\`)
     console.log(`    -H "Content-Type: application/json" \\`)
-    console.log(`    -d @${outFile}`)
+    console.log(`    -d @${draftFile}`)
 
     // Auto-publish if requested
     if (process.env.AUTO_PUBLISH === 'true') {
@@ -115,15 +118,15 @@ async function main() {
       })
       const result = await res.json()
       if (res.ok) {
-        console.log(`✓ Published! Version ${result.version}`)
+        console.log(`Published! Version ${(result as any).version}`)
       } else {
         console.error('Publish failed:', result)
       }
     }
   } else {
     const needed = CONFIG.MIN_SIGNATURES - draft.signatures.length
-    console.log(`\n${needed} more signature(s) needed. Share ${outFile} with another admin.`)
-    console.log(`  ADMIN_INDEX=1 DRAFT_FILE=${outFile} npm run sign`)
+    console.log(`\n${needed} more signature(s) needed. Share ${draftFile} with another admin.`)
+    console.log(`  ADMIN_INDEX=1 DRAFT_FILE=${draftFile} npm run sign`)
   }
 }
 
