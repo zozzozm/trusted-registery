@@ -22,6 +22,7 @@ export interface RegistryDocument {
   version:          number
   issuedAt:         number
   expiresAt:        number
+  adminAddresses:   string[]
   nodes:            NodeRecord[]
   merkleRoot:       string
   prevDocumentHash: string | null

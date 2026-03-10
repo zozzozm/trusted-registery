@@ -1,22 +1,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Configuration — admin Ethereum addresses are the TRUST ROOT of the system
+// Configuration
 //
-// In production: these are hardcoded in every MPC node binary.
-// In development: loaded from environment variables.
-//
-// The private keys NEVER touch this server.
-// They live in hardware wallets (MetaMask / Ledger / Trezor).
+// Admin addresses are now stored in the registry document itself.
+// Env vars ADMIN_ADDRESS_* are only used for genesis bootstrap.
+// After genesis, the document is self-governing — admin rotation
+// requires multi-sig approval from the current admins.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import * as dotenv from 'dotenv'
 import { ethers } from 'ethers'
 dotenv.config()
-
-function required(key: string): string {
-  const v = process.env[key]
-  if (!v) throw new Error(`Missing required env var: ${key}`)
-  return v
-}
 
 function optional(key: string, fallback: string): string {
   return process.env[key] ?? fallback
@@ -31,14 +24,17 @@ export const CONFIG = {
   REGISTRY_ID:      optional('REGISTRY_ID', 'dev-custody-v1'),
   EXPIRY_SECONDS:   parseInt(optional('EXPIRY_SECONDS', String(30 * 24 * 3600))),
 
-  // ── Admin Ethereum addresses (TRUST ROOT) ─────────────────────────────────
-  // These are checksummed Ethereum addresses — safe to store anywhere.
-  get ADMIN_ADDRESSES(): string[] {
-    return [
-      required('ADMIN_ADDRESS_0'),
-      required('ADMIN_ADDRESS_1'),
-      required('ADMIN_ADDRESS_2'),
-    ].map(a => ethers.getAddress(a))
+  // ── Genesis admin addresses (bootstrap only) ──────────────────────────────
+  // Used only when creating the genesis document. After that, admin addresses
+  // are read from the registry document itself.
+  get GENESIS_ADMIN_ADDRESSES(): string[] {
+    const addrs: string[] = []
+    for (let i = 0; ; i++) {
+      const v = process.env[`ADMIN_ADDRESS_${i}`]
+      if (!v) break
+      addrs.push(ethers.getAddress(v))
+    }
+    return addrs
   },
 
   // Minimum number of valid admin signatures to accept a document

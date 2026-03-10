@@ -51,6 +51,10 @@ export class VerifyDocumentDto {
   expiresAt: number
 
   @IsArray()
+  @IsString({ each: true })
+  adminAddresses: string[]
+
+  @IsArray()
   @ValidateNested({ each: true })
   @Type(() => NodeRecordDto)
   nodes: NodeRecordDto[]
