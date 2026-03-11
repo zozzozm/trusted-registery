@@ -18,16 +18,18 @@ export interface AdminSignature {
 }
 
 export interface RegistryDocument {
-  registryId:       string
-  version:          number
-  issuedAt:         number
-  expiresAt:        number
-  adminAddresses:   string[]
-  nodes:            NodeRecord[]
-  merkleRoot:       string
-  prevDocumentHash: string | null
-  documentHash:     string
-  signatures:       AdminSignature[]
+  registryId:            string
+  version:               number
+  issuedAt:              number
+  expiresAt:             number
+  adminAddresses:        string[]
+  backofficeServicePubkey: string | null
+  threshold:             number
+  nodes:                 NodeRecord[]
+  merkleRoot:            string
+  prevDocumentHash:      string | null
+  documentHash:          string
+  signatures:            AdminSignature[]
 }
 
 export type UnsignedDocument = Omit<RegistryDocument, 'signatures'>

@@ -30,15 +30,17 @@ async function main() {
   const now: number = Math.floor(Date.now() / 1000)
 
   const unsigned: UnsignedDocument = {
-    registryId:       CONFIG.REGISTRY_ID,
-    version:          1,
-    issuedAt:         now,
-    expiresAt:        now + CONFIG.EXPIRY_SECONDS,
-    adminAddresses:   adminAddresses,
-    nodes:            [],
-    merkleRoot:       computeMerkleRoot([]),
-    prevDocumentHash: null,
-    documentHash:     '',
+    registryId:            CONFIG.REGISTRY_ID,
+    version:               1,
+    issuedAt:              now,
+    expiresAt:             now + CONFIG.EXPIRY_SECONDS,
+    adminAddresses:        adminAddresses,
+    backofficeServicePubkey: null,
+    threshold:             0,
+    nodes:                 [],
+    merkleRoot:            computeMerkleRoot([]),
+    prevDocumentHash:      null,
+    documentHash:          '',
   }
   unsigned.documentHash = computeDocumentHash(unsigned)
 

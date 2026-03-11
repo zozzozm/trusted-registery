@@ -57,6 +57,8 @@ async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<Regi
     registryId: 'test-registry-v1', version: 1,
     issuedAt: now, expiresAt: now + 3600,
     adminAddresses: adminAddresses(),
+    backofficeServicePubkey: null,
+    threshold: 0,
     nodes: [], merkleRoot: computeMerkleRoot([]),
     prevDocumentHash: null, documentHash: '',
     ...overrides,
@@ -97,6 +99,7 @@ describe('Verify — each failure case', () => {
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send({
       registryId: 'x', version: 1, issuedAt: 1, expiresAt: 1,
       adminAddresses: adminAddresses(),
+      backofficeServicePubkey: null, threshold: 0,
       nodes: [], merkleRoot: 'x', prevDocumentHash: null, documentHash: 'x', signatures: []
     })
     expect(r.status).toBe(200)
@@ -107,6 +110,8 @@ describe('Verify — each failure case', () => {
       registryId: d.registryId, version: d.version,
       issuedAt: d.issuedAt, expiresAt: d.expiresAt,
       adminAddresses: d.adminAddresses,
+      backofficeServicePubkey: d.backofficeServicePubkey,
+      threshold: d.threshold,
       nodes: d.nodes, merkleRoot: d.merkleRoot,
       prevDocumentHash: d.prevDocumentHash, documentHash: '',
     }

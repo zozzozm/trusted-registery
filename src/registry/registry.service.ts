@@ -151,6 +151,61 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
+  /** POST /registry/threshold/propose — propose a new threshold value */
+  proposeThreshold(body: { threshold: number }): RegistryDocument {
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
+    const threshold = body.threshold
+    if (!Number.isInteger(threshold) || threshold < 0) {
+      throw new BadRequestException('threshold must be a non-negative integer')
+    }
+
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    const activeNodes = this.stagedDraft.nodes.filter(n => n.status === 'ACTIVE').length
+    if (threshold > activeNodes) {
+      throw new BadRequestException(`threshold (${threshold}) exceeds active node count (${activeNodes})`)
+    }
+
+    this.stagedDraft.threshold = threshold
+    this._refreshDraftHash()
+
+    this.audit('THRESHOLD_PROPOSED', { threshold })
+    return this.stagedDraft
+  }
+
+  /** POST /registry/backoffice-pubkey/propose — propose a new backoffice service public key */
+  proposeBackofficePubkey(body: { backofficeServicePubkey: string }): RegistryDocument {
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
+    const pubkey = body.backofficeServicePubkey
+    if (!/^[0-9a-f]{64}$/i.test(pubkey)) {
+      throw new BadRequestException('backofficeServicePubkey must be 32 bytes (64 hex chars)')
+    }
+
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    this.stagedDraft.backofficeServicePubkey = pubkey
+    this._refreshDraftHash()
+
+    this.audit('BACKOFFICE_PUBKEY_PROPOSED', { backofficeServicePubkey: pubkey })
+    return this.stagedDraft
+  }
+
   /** GET /registry/node/:nodeId */
   getNode(nodeId: string): NodeRecord {
     const node = this.currentDoc?.nodes.find(n => n.nodeId === nodeId)
@@ -204,7 +259,7 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash']
+    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash','threshold']
     const missing  = requiredFields.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
@@ -230,15 +285,17 @@ export class RegistryService implements OnModuleInit {
 
     // Step 4 — Document hash integrity (whitelist known fields only)
     const unsignedClean: UnsignedDocument = {
-      registryId:       doc.registryId,
-      version:          doc.version,
-      issuedAt:         doc.issuedAt,
-      expiresAt:        doc.expiresAt,
-      adminAddresses:   doc.adminAddresses,
-      nodes:            doc.nodes,
-      merkleRoot:       doc.merkleRoot,
-      prevDocumentHash: doc.prevDocumentHash,
-      documentHash:     '',
+      registryId:            doc.registryId,
+      version:               doc.version,
+      issuedAt:              doc.issuedAt,
+      expiresAt:             doc.expiresAt,
+      adminAddresses:        doc.adminAddresses,
+      backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
+      threshold:             doc.threshold ?? 0,
+      nodes:                 doc.nodes,
+      merkleRoot:            doc.merkleRoot,
+      prevDocumentHash:      doc.prevDocumentHash,
+      documentHash:          '',
     }
     const expectedHash = computeDocumentHash(unsignedClean)
     if (expectedHash !== doc.documentHash) {
@@ -302,6 +359,17 @@ export class RegistryService implements OnModuleInit {
       }
     }
 
+    // Step 9 — Threshold validation
+    const threshold = doc.threshold ?? 0
+    const activeNodes = Array.isArray(doc.nodes) ? doc.nodes.filter((n: any) => n.status === 'ACTIVE').length : 0
+    if (threshold < 0) {
+      fail('threshold', 'Threshold must be non-negative')
+    } else if (threshold > activeNodes) {
+      fail('threshold', `Threshold (${threshold}) exceeds active node count (${activeNodes})`)
+    } else {
+      pass('threshold', `Threshold ${threshold} <= ${activeNodes} active nodes`)
+    }
+
     const allPassed = steps.every(s => s.passed)
     return { valid: allPassed, steps, summary: allPassed ? 'Document is valid' : 'Document failed verification' }
   }
@@ -350,9 +418,10 @@ export class RegistryService implements OnModuleInit {
       throw new ConflictException('nodeId collision — try again')
     }
 
-    // Add the node and refresh hash
+    // Add the node and auto-increment threshold
     const newNode: NodeRecord = { ...body, nodeId, status: 'ACTIVE', enrolledAt: now }
     this.stagedDraft.nodes.push(newNode)
+    this.stagedDraft.threshold += 1
     this._refreshDraftHash()
 
     this.audit('ENROLL_PROPOSED', { nodeId, role: body.role })
@@ -378,10 +447,13 @@ export class RegistryService implements OnModuleInit {
     if (!node) throw new NotFoundException(`Node ${body.nodeId} not found`)
     if (node.status === 'REVOKED') throw new ConflictException('Node is already revoked')
 
-    // Revoke and refresh hash
+    // Revoke, decrement threshold, and refresh hash
     const now = Math.floor(Date.now() / 1000)
     node.status = 'REVOKED'
     node.revokedAt = now
+    if (this.stagedDraft.threshold > 0) {
+      this.stagedDraft.threshold -= 1
+    }
     this._refreshDraftHash()
 
     this.audit('REVOKE_PROPOSED', { nodeId: body.nodeId, reason: body.reason })
@@ -404,16 +476,18 @@ export class RegistryService implements OnModuleInit {
 
     // Construct clean document from known fields only
     const clean: RegistryDocument = {
-      registryId:       doc.registryId,
-      version:          doc.version,
-      issuedAt:         doc.issuedAt,
-      expiresAt:        doc.expiresAt,
-      adminAddresses:   doc.adminAddresses,
-      nodes:            doc.nodes,
-      merkleRoot:       doc.merkleRoot,
-      prevDocumentHash: doc.prevDocumentHash,
-      documentHash:     doc.documentHash,
-      signatures:       doc.signatures,
+      registryId:            doc.registryId,
+      version:               doc.version,
+      issuedAt:              doc.issuedAt,
+      expiresAt:             doc.expiresAt,
+      adminAddresses:        doc.adminAddresses,
+      backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
+      threshold:             doc.threshold ?? 0,
+      nodes:                 doc.nodes,
+      merkleRoot:            doc.merkleRoot,
+      prevDocumentHash:      doc.prevDocumentHash,
+      documentHash:          doc.documentHash,
+      signatures:            doc.signatures,
     }
 
     // Persist
@@ -448,15 +522,17 @@ export class RegistryService implements OnModuleInit {
     // Carry forward current admin addresses, or use genesis
     const admins  = this.getActiveAdminAddresses()
     const draft: UnsignedDocument = {
-      registryId:       CONFIG.REGISTRY_ID,
-      version:          nextV,
-      issuedAt:         now,
-      expiresAt:        now + CONFIG.EXPIRY_SECONDS,
-      adminAddresses:   admins,
-      nodes:            sorted,
-      merkleRoot:       computeMerkleRoot(sorted),
-      prevDocumentHash: this.currentDoc?.documentHash ?? null,
-      documentHash:     '',
+      registryId:            CONFIG.REGISTRY_ID,
+      version:               nextV,
+      issuedAt:              now,
+      expiresAt:             now + CONFIG.EXPIRY_SECONDS,
+      adminAddresses:        admins,
+      backofficeServicePubkey: this.currentDoc?.backofficeServicePubkey ?? null,
+      threshold:             this.currentDoc?.threshold ?? 0,
+      nodes:                 sorted,
+      merkleRoot:            computeMerkleRoot(sorted),
+      prevDocumentHash:      this.currentDoc?.documentHash ?? null,
+      documentHash:          '',
     }
     draft.documentHash = computeDocumentHash(draft)
     return draft
