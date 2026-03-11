@@ -158,6 +158,32 @@
       <div id="revoke-msg"></div>
     </div>
 
+    <!-- Admin Rotation -->
+    <div class="section">
+      <h2>Rotate Admins</h2>
+      <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+        Propose new admin wallet addresses. Current admins must sign the change.
+      </p>
+      <div id="admin-inputs">
+        <div class="form-group">
+          <label>Admin 0</label>
+          <input class="admin-addr-input" placeholder="0x...">
+        </div>
+        <div class="form-group">
+          <label>Admin 1</label>
+          <input class="admin-addr-input" placeholder="0x...">
+        </div>
+        <div class="form-group">
+          <label>Admin 2</label>
+          <input class="admin-addr-input" placeholder="0x...">
+        </div>
+      </div>
+      <button class="secondary" onclick="addAdminInput()">+ Add Admin</button>
+      <button class="secondary" onclick="loadCurrentAdmins()">Load Current</button>
+      <button class="purple" onclick="proposeAdmins()">Propose Change</button>
+      <div id="admin-msg"></div>
+    </div>
+
     <!-- Node List -->
     <div class="section">
       <h2>Active Nodes</h2>
@@ -584,6 +610,58 @@
           <div style="margin-top:0.25rem; color:#8b949e; font-size:0.75rem;">${s.signature.substring(0, 42)}...</div>
         </div>`
       ).join('')
+    }
+
+    // ── Admin Rotation ─────────────────────────────────────────────────
+    function addAdminInput() {
+      const container = document.getElementById('admin-inputs')
+      const count = container.querySelectorAll('.admin-addr-input').length
+      const div = document.createElement('div')
+      div.className = 'form-group'
+      div.innerHTML = `<label>Admin ${count}</label><input class="admin-addr-input" placeholder="0x...">`
+      container.appendChild(div)
+    }
+
+    async function loadCurrentAdmins() {
+      try {
+        const res = await fetch(`${API}/current`)
+        if (!res.ok) { showMsg('admin-msg', 'No current registry', false); return }
+        const doc = await res.json()
+        const inputs = document.querySelectorAll('.admin-addr-input')
+        const container = document.getElementById('admin-inputs')
+        // Reset to match current admin count
+        container.innerHTML = ''
+        doc.adminAddresses.forEach((addr, i) => {
+          const div = document.createElement('div')
+          div.className = 'form-group'
+          div.innerHTML = `<label>Admin ${i}</label><input class="admin-addr-input" placeholder="0x..." value="${addr}">`
+          container.appendChild(div)
+        })
+        showMsg('admin-msg', 'Loaded current admin addresses', true)
+      } catch (e) { showMsg('admin-msg', e.message, false) }
+    }
+
+    async function proposeAdmins() {
+      const inputs = document.querySelectorAll('.admin-addr-input')
+      const addresses = Array.from(inputs).map(el => el.value.trim()).filter(Boolean)
+      if (addresses.length < 2) {
+        showMsg('admin-msg', 'Need at least 2 admin addresses', false); return
+      }
+      try {
+        const res = await fetch(`${API}/admins/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ adminAddresses: addresses }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('admin-msg', 'Admin change proposed! Draft created (v' + result.version + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('admin-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('admin-msg', e.message, false) }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

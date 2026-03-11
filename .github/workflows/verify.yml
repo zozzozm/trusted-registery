@@ -2,23 +2,31 @@ name: Verify Registry Document
 
 on:
   push:
-    paths: ['data/registry.json']
   pull_request:
-    paths: ['data/registry.json']
 
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Check if registry.json changed
+        id: check
+        run: |
+          if git diff --name-only ${{ github.event.before || 'HEAD~1' }} HEAD 2>/dev/null | grep -q 'data/registry.json'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/setup-node@v4
+        if: steps.check.outputs.changed == 'true'
         with:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+        if: steps.check.outputs.changed == 'true'
       - name: Verify registry document signatures
+        if: steps.check.outputs.changed == 'true'
         env:
-          # Optional: set these for genesis trust verification
           ADMIN_ADDRESS_0: ${{ secrets.ADMIN_ADDRESS_0 }}
           ADMIN_ADDRESS_1: ${{ secrets.ADMIN_ADDRESS_1 }}
           ADMIN_ADDRESS_2: ${{ secrets.ADMIN_ADDRESS_2 }}
@@ -26,3 +34,6 @@ jobs:
           MIN_SIGNATURES:  '2'
           REGISTRY_FILE:   './data/registry.json'
         run: npx ts-node scripts/verify-file.ts
+      - name: Skip — registry.json not changed
+        if: steps.check.outputs.changed == 'false'
+        run: echo "registry.json not modified — skipping verification"
