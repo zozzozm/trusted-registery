@@ -254,12 +254,11 @@ export class RegistryService implements OnModuleInit {
     return node
   }
 
-  /** GET /registry/nodes?wallet=xxx&role=yyy */
-  getNodes(wallet?: string, role?: string): NodeRecord[] {
+  /** GET /registry/nodes?role=yyy */
+  getNodes(role?: string): NodeRecord[] {
     const nodes = this.currentDoc?.nodes ?? []
     return nodes.filter(n => {
-      if (wallet && !n.walletScope.includes(wallet)) return false
-      if (role   && n.role !== role) return false
+      if (role && n.role !== role) return false
       return true
     })
   }
@@ -449,7 +448,6 @@ export class RegistryService implements OnModuleInit {
     ikPub: string
     ekPub: string
     role: NodeRole
-    walletScope: string[]
   }): { nodeId: string; draft: RegistryDocument } {
     // Reject if draft is locked (has signatures)
     if (this.draftLocked) {
@@ -465,8 +463,6 @@ export class RegistryService implements OnModuleInit {
     if (!['USER_COSIGNER','PROVIDER_COSIGNER','RECOVERY_GUARDIAN'].includes(body.role)) {
       throw new BadRequestException('Invalid role')
     }
-    if (!body.walletScope?.length) throw new BadRequestException('walletScope cannot be empty')
-
     // Check not already enrolled (active OR revoked — block re-enrollment of revoked keys)
     const draftNodes = this.stagedDraft?.nodes ?? this.currentDoc?.nodes ?? []
     if (draftNodes.some(n => n.ikPub === body.ikPub)) {

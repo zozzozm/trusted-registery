@@ -129,7 +129,7 @@ describe('Verify — each failure case', () => {
   })
   it('tampered content', async () => {
     const d = await buildDoc()
-    d.nodes = [{ nodeId:'hack', ikPub:'a'.repeat(64), ekPub:'b'.repeat(64), role:'RECOVERY_GUARDIAN', walletScope:['evil'], status:'ACTIVE', enrolledAt:1 }]
+    d.nodes = [{ nodeId:'hack', ikPub:'a'.repeat(64), ekPub:'b'.repeat(64), role:'RECOVERY_GUARDIAN', status:'ACTIVE', enrolledAt:1 }]
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send(d)
     expect(r.body.steps.find((s:any) => s.step==='documentHash').passed).toBe(false)
   })
@@ -167,8 +167,7 @@ describe('Full publish flow', () => {
   it('enroll proposes a draft', async () => {
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: 'a'.repeat(64), ekPub: 'b'.repeat(64),
-      role: 'PROVIDER_COSIGNER', walletScope: ['wallet-001'],
-    })
+      role: 'PROVIDER_COSIGNER',    })
     expect(r.status).toBe(200)
     expect(r.body.draft.version).toBe(2)
     expect(r.body.draft.nodes.length).toBe(1)
@@ -230,8 +229,7 @@ describe('Security', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: 'c'.repeat(64), ekPub: 'd'.repeat(64),
-      role: 'USER_COSIGNER', walletScope: ['wallet-002'],
-    })
+      role: 'USER_COSIGNER',    })
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
     const { signatures: _, ...unsigned } = pending
     const sig = await signDocument(unsigned, wallets[0].privateKey)
@@ -240,8 +238,7 @@ describe('Security', () => {
     })
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: 'e'.repeat(64), ekPub: 'f'.repeat(64),
-      role: 'USER_COSIGNER', walletScope: ['wallet-003'],
-    })
+      role: 'USER_COSIGNER',    })
     expect(r.status).toBe(409)
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
@@ -261,7 +258,7 @@ describe('Security', () => {
 
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: activeNode.ikPub, ekPub: activeNode.ekPub,
-      role: activeNode.role, walletScope: activeNode.walletScope,
+      role: activeNode.role,
     })
     expect(r.status).toBe(409)
   })
@@ -296,13 +293,11 @@ describe('Security', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     const r1 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '1'.repeat(64), ekPub: '2'.repeat(64),
-      role: 'RECOVERY_GUARDIAN', walletScope: ['wallet-x'],
-    })
+      role: 'RECOVERY_GUARDIAN',    })
     expect(r1.status).toBe(200)
     const r2 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '1'.repeat(64), ekPub: '3'.repeat(64),
-      role: 'RECOVERY_GUARDIAN', walletScope: ['wallet-y'],
-    })
+      role: 'RECOVERY_GUARDIAN',    })
     expect(r2.status).toBe(409)
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
@@ -324,18 +319,12 @@ describe('Security', () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
 
-  it('walletScope validation — rejects invalid values', async () => {
+  it('invalid role — rejects bad role value', async () => {
     const r1 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
       ikPub: '5'.repeat(64), ekPub: '6'.repeat(64),
-      role: 'USER_COSIGNER', walletScope: [123],
+      role: 'INVALID_ROLE',
     })
     expect(r1.status).toBe(400)
-
-    const r2 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: '5'.repeat(64), ekPub: '6'.repeat(64),
-      role: 'USER_COSIGNER', walletScope: [],
-    })
-    expect(r2.status).toBe(400)
   })
 
   it('documentHash mismatch on sign — rejects stale hash', async () => {

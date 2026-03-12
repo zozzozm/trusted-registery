@@ -193,7 +193,6 @@ curl -s http://localhost:3000/api/registry/current | jq '
     "ikPub": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     "ekPub": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
     "role": "RECOVERY_GUARDIAN",
-    "walletScope": ["wallet-001"],
     "status": "ACTIVE",
     "enrolledAt": 1709000000
   }]
@@ -299,7 +298,7 @@ curl -X POST http://localhost:3000/api/registry/nodes/enroll \
     "ikPub":       "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
     "ekPub":       "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
     "role":        "PROVIDER_COSIGNER",
-    "walletScope": ["wallet-001", "wallet-002"]
+    "role":        "PROVIDER_COSIGNER"
   }' | jq
 ```
 
@@ -315,8 +314,7 @@ curl -X POST http://localhost:3000/api/registry/nodes/enroll \
         "nodeId": "3f4a5b...",
         "ikPub": "a1b2c3...",
         "role": "PROVIDER_COSIGNER",
-        "walletScope": ["wallet-001", "wallet-002"],
-        "status": "ACTIVE",
+                "status": "ACTIVE",
         "enrolledAt": 1709001234
       }
     ],
@@ -402,8 +400,8 @@ curl -X POST http://localhost:3000/api/registry/publish \
 # List all nodes
 curl http://localhost:3000/api/registry/nodes | jq
 
-# Filter by wallet
-curl "http://localhost:3000/api/registry/nodes?wallet=wallet-001" | jq
+# Filter by role
+curl "http://localhost:3000/api/registry/nodes?role=PROVIDER_COSIGNER" | jq
 
 # Filter by role
 curl "http://localhost:3000/api/registry/nodes?role=PROVIDER_COSIGNER" | jq
@@ -517,7 +515,7 @@ curl -X POST http://localhost:3000/api/registry/publish \
 curl http://localhost:3000/api/registry/nodes | jq '.[].status'
 # → "REVOKED"
 
-curl "http://localhost:3000/api/registry/nodes?wallet=wallet-001" | jq
+curl "http://localhost:3000/api/registry/nodes?role=PROVIDER_COSIGNER" | jq
 # → still returns revoked nodes (use status filter in real code)
 ```
 
@@ -550,7 +548,7 @@ Set a variable `base` = `http://localhost:3000/api`
   "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
   "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
   "role": "PROVIDER_COSIGNER",
-  "walletScope": ["wallet-001"]
+  "role": "PROVIDER_COSIGNER"
 }
 ```
 
@@ -631,8 +629,8 @@ curl http://localhost:3000/api/registry/pending | jq
 # All nodes
 curl http://localhost:3000/api/registry/nodes | jq
 
-# Filter nodes by wallet
-curl "http://localhost:3000/api/registry/nodes?wallet=wallet-001" | jq
+# Filter nodes by role
+curl "http://localhost:3000/api/registry/nodes?role=PROVIDER_COSIGNER" | jq
 
 # Filter nodes by role
 curl "http://localhost:3000/api/registry/nodes?role=PROVIDER_COSIGNER" | jq
@@ -651,7 +649,7 @@ curl -s http://localhost:3000/api/registry/current | \
 # Propose enroll
 curl -X POST http://localhost:3000/api/registry/nodes/enroll \
   -H "Content-Type: application/json" \
-  -d '{"ikPub":"a1b2...","ekPub":"c3d4...","role":"PROVIDER_COSIGNER","walletScope":["wallet-001"]}' | jq
+  -d '{"ikPub":"a1b2...","ekPub":"c3d4...","role":"PROVIDER_COSIGNER"}' | jq
 
 # Sign with admin 0
 ADMIN_INDEX=0 npm run sign

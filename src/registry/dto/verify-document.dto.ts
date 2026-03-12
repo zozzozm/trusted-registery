@@ -14,10 +14,6 @@ class NodeRecordDto {
   @IsIn(['USER_COSIGNER', 'PROVIDER_COSIGNER', 'RECOVERY_GUARDIAN'])
   role: string
 
-  @IsArray()
-  @IsString({ each: true })
-  walletScope: string[]
-
   @IsIn(['ACTIVE', 'REVOKED'])
   status: string
 

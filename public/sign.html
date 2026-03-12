@@ -143,10 +143,6 @@
           </select>
         </div>
       </div>
-      <div class="form-group">
-        <label>Wallet Scope (comma-separated)</label>
-        <input id="enroll-wallets" placeholder="wallet-001, wallet-002">
-      </div>
       <button onclick="enrollNode()">Propose Enrollment</button>
       <div id="enroll-msg"></div>
     </div>
@@ -420,9 +416,8 @@
       const ikPub = document.getElementById('enroll-ikpub').value.trim()
       const ekPub = document.getElementById('enroll-ekpub').value.trim()
       const role = document.getElementById('enroll-role').value
-      const walletScope = document.getElementById('enroll-wallets').value.split(',').map(s => s.trim()).filter(Boolean)
 
-      if (!ikPub || !ekPub || !walletScope.length) {
+      if (!ikPub || !ekPub) {
         showMsg('enroll-msg', 'All fields are required', false); return
       }
 
@@ -430,7 +425,7 @@
         const res = await fetch(`${API}/nodes/enroll`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ikPub, ekPub, role, walletScope }),
+          body: JSON.stringify({ ikPub, ekPub, role }),
         })
         const result = await res.json()
         if (res.ok) {
@@ -439,7 +434,6 @@
           showDraftInfo()
           document.getElementById('enroll-ikpub').value = ''
           document.getElementById('enroll-ekpub').value = ''
-          document.getElementById('enroll-wallets').value = ''
         } else {
           showMsg('enroll-msg', result.message || 'Failed', false)
         }
@@ -485,7 +479,6 @@
             <div><strong>${n.role}</strong> <span class="badge ${n.status === 'ACTIVE' ? 'badge-active' : 'badge-revoked'}">${n.status}</span></div>
             <div class="mono" style="margin-top:0.25rem; font-size:0.75rem;">ID: ${n.nodeId}</div>
             <div class="mono" style="font-size:0.75rem;">ikPub: ${n.ikPub.substring(0,16)}...</div>
-            <div style="font-size:0.75rem; color:#8b949e;">Wallets: ${n.walletScope.join(', ')}</div>
             ${n.status === 'ACTIVE' ? `<button class="danger" style="margin-top:0.5rem; font-size:0.75rem; padding:0.25rem 0.75rem;" onclick="document.getElementById('revoke-nodeid').value='${n.nodeId}';">Revoke</button>` : ''}
           </div>
         `).join('')

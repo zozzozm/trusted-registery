@@ -31,9 +31,8 @@ export class RegistryController {
 
   @Get('nodes')
   nodes(
-    @Query('wallet') wallet?: string,
-    @Query('role')   role?: string
-  ) { return this.svc.getNodes(wallet, role) }
+    @Query('role') role?: string
+  ) { return this.svc.getNodes(role) }
 
   @Get('nodes/:nodeId')
   node(@Param('nodeId') nodeId: string) { return this.svc.getNode(nodeId) }

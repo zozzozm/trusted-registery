@@ -1,8 +1,8 @@
 {
   "registryId": "dev-custody-v1",
-  "version": 6,
-  "issuedAt": 1773322839,
-  "expiresAt": 1773927639,
+  "version": 7,
+  "issuedAt": 1773359842,
+  "expiresAt": 1773964642,
   "adminAddresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
@@ -20,25 +20,22 @@
       "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
       "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
       "role": "USER_COSIGNER",
-      "walletScope": [
-        "wallet-003"
-      ],
       "nodeId": "fd4e272dc6dbc4adf3f96c7d314918ca46e631711e9ebb786455b333f69e1439",
       "status": "ACTIVE",
       "enrolledAt": 1773186725
     }
   ],
-  "merkleRoot": "53d669550a95100ad270c2dd99e807b2ff633532ad9e662e5719b3e1f1313ddc",
-  "prevDocumentHash": "36c4939a6b218664d958749a3b78307268272cae97304ea88e20639741f679ea",
-  "documentHash": "ba99642569170e8264f27803674093d6815dce10c63c2507f4d52f0f4c7bffd1",
+  "merkleRoot": "22a7d47c7eb59907e68554332e98ff5c1289d65aef9b67a6890946c18ad416d0",
+  "prevDocumentHash": "ba99642569170e8264f27803674093d6815dce10c63c2507f4d52f0f4c7bffd1",
+  "documentHash": "abb1133f3949c67fd62f3a9f4f15dfd5f7e895cf882631fa8f4ff15ddc99dd6d",
   "signatures": [
     {
-      "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
-      "signature": "0xe5e25955c0ad10e78acde198e69f8ff8a30176bf291c8a36b62309336e0e03ff527db1ad6efcf163b479f34285747e1899819baeb3084d33695e5f10623ff2751b"
+      "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
+      "signature": "0xd4bbea0b5fdf62b33983c91e6abc682f3b75d02d025bab82279fcad86a5ba88504e1a9bf2bf4e3cae03d7609ed0060315a2165ec2631892294388af84a8af2261c"
     },
     {
-      "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
-      "signature": "0xbae2aa014d8825f924543eb77fd84143d913414f123c0efb5f55d0ccd0305a623193567a3df36a2344d991cbec6726b9d2f6415b9852588600c525db769aba761b"
+      "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
+      "signature": "0xf4253981e0b9a32758526ab018b32594e3479df6eacb1a6186cd84bbbada1751688d2b0e2255e783586fccb99a998400d3159078505fc429682db8534855d1091c"
     }
   ]
 }
