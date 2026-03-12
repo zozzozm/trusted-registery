@@ -6,7 +6,6 @@ export interface NodeRecord {
   ikPub:       string
   ekPub:       string
   role:        NodeRole
-  walletScope: string[]
   status:      NodeStatus
   enrolledAt:  number
   revokedAt?:  number

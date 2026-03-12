@@ -45,7 +45,7 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 
 - **Core**: `registryId`, `version`, `issuedAt`, `expiresAt`
 - **Admin**: `adminAddresses` (Ethereum addresses, 2-of-3 multi-sig)
-- **Nodes**: `nodes[]` (NodeRecord with ikPub, ekPub, role, walletScope, status)
+- **Nodes**: `nodes[]` (NodeRecord with ikPub, ekPub, role, status)
 - **Backoffice**: `backofficeServicePubkey` (32-byte hex public key, nullable)
 - **Threshold**: `threshold` (auto-increments on enroll, auto-decrements on revoke, must be <= active node count)
 - **Endpoints**: `endpoints` (nullable object with `primary` URL, `mirrors[]` URLs, `updated_at` timestamp)

@@ -17,7 +17,7 @@ The MPC wallet needs to know **which nodes are legitimate** before participating
        │  1. Fetch registry.json (primary URL or mirrors)
        │  2. Verify document integrity (hash, merkle, chain, signatures)
        │  3. Check threshold and endpoints
-       │  4. Extract active nodes for wallet scope
+       │  4. Extract active nodes by role
        │  5. Use node keys (ikPub, ekPub) in MPC ceremonies
        │
 ```
@@ -48,7 +48,6 @@ The `registry.json` file contains a single `RegistryDocument`:
       "ikPub":       "64-hex-char-identity-key",   // Ed25519 / X25519 identity public key
       "ekPub":       "64-hex-char-ephemeral-key",  // ephemeral public key
       "role":        "USER_COSIGNER",               // USER_COSIGNER | PROVIDER_COSIGNER | RECOVERY_GUARDIAN
-      "walletScope": ["wallet-abc", "wallet-xyz"],  // which wallets this node serves
       "status":      "ACTIVE",                      // ACTIVE | REVOKED
       "enrolledAt":  1710000000
     }
@@ -253,7 +252,6 @@ const EIP712_TYPES = {
     { name: 'ikPub',       type: 'string' },
     { name: 'ekPub',       type: 'string' },
     { name: 'role',        type: 'string' },
-    { name: 'walletScope', type: 'string[]' },
     { name: 'status',      type: 'string' },
     { name: 'enrolledAt',  type: 'uint256' },
     { name: 'revokedAt',   type: 'uint256' },
@@ -301,7 +299,6 @@ function checkSignatures(doc: RegistryDocument): void {
       ikPub:       n.ikPub,
       ekPub:       n.ekPub,
       role:        n.role,
-      walletScope: n.walletScope,
       status:      n.status,
       enrolledAt:  n.enrolledAt,
       revokedAt:   n.revokedAt ?? 0,
@@ -383,16 +380,11 @@ function verifyRegistry(doc: RegistryDocument): void {
 
 ## 5. Using the Registry in the MPC Wallet
 
-### 5.1 — Get Active Nodes for a Wallet
+### 5.1 — Get Active Nodes
 
 ```typescript
-function getActiveNodesForWallet(
-  doc: RegistryDocument,
-  walletId: string,
-): NodeRecord[] {
-  return doc.nodes.filter(
-    n => n.status === 'ACTIVE' && n.walletScope.includes(walletId),
-  );
+function getActiveNodes(doc: RegistryDocument): NodeRecord[] {
+  return doc.nodes.filter(n => n.status === 'ACTIVE');
 }
 ```
 
@@ -401,11 +393,10 @@ function getActiveNodesForWallet(
 ```typescript
 function getNodesByRole(
   doc: RegistryDocument,
-  walletId: string,
   role: 'USER_COSIGNER' | 'PROVIDER_COSIGNER' | 'RECOVERY_GUARDIAN',
 ): NodeRecord[] {
   return doc.nodes.filter(
-    n => n.status === 'ACTIVE' && n.role === role && n.walletScope.includes(walletId),
+    n => n.status === 'ACTIVE' && n.role === role,
   );
 }
 ```
@@ -413,8 +404,8 @@ function getNodesByRole(
 ### 5.3 — Check Threshold Before Ceremony
 
 ```typescript
-function canStartCeremony(doc: RegistryDocument, walletId: string): boolean {
-  const activeNodes = getActiveNodesForWallet(doc, walletId);
+function canStartCeremony(doc: RegistryDocument): boolean {
+  const activeNodes = getActiveNodes(doc);
   return activeNodes.length >= doc.threshold;
 }
 ```
@@ -422,19 +413,19 @@ function canStartCeremony(doc: RegistryDocument, walletId: string): boolean {
 ### 5.4 — MPC Ceremony Integration
 
 ```typescript
-async function startSigningCeremony(walletId: string, txPayload: any) {
+async function startSigningCeremony(txPayload: any) {
   // 1. Fetch and verify registry
   const registry = await fetchRegistry();
   verifyRegistry(registry);
 
   // 2. Check threshold
-  if (!canStartCeremony(registry, walletId)) {
+  if (!canStartCeremony(registry)) {
     throw new Error(`Not enough active nodes (need ${registry.threshold})`);
   }
 
   // 3. Resolve the signing quorum
-  const userNode     = getNodesByRole(registry, walletId, 'USER_COSIGNER')[0];
-  const providerNode = getNodesByRole(registry, walletId, 'PROVIDER_COSIGNER')[0];
+  const userNode     = getNodesByRole(registry, 'USER_COSIGNER')[0];
+  const providerNode = getNodesByRole(registry, 'PROVIDER_COSIGNER')[0];
 
   if (!userNode || !providerNode) {
     throw new Error('Missing required cosigners for this wallet');
@@ -590,7 +581,6 @@ interface NodeRecord {
   ikPub:       string;
   ekPub:       string;
   role:        NodeRole;
-  walletScope: string[];
   status:      NodeStatus;
   enrolledAt:  number;
   revokedAt?:  number;
@@ -639,7 +629,7 @@ interface HighWaterMark {
 |--------|----------|-------------|
 | `GET` | `/api/registry/current` | Get current published document |
 | `GET` | `/api/registry/health` | Health check with admin info |
-| `GET` | `/api/registry/nodes` | List nodes (filter: `?wallet=x&role=y`) |
+| `GET` | `/api/registry/nodes` | List nodes (filter: `?role=y`) |
 | `GET` | `/api/registry/nodes/:nodeId` | Get specific node |
 | `POST` | `/api/registry/pending` | Create new draft |
 | `GET` | `/api/registry/pending` | Get pending draft |

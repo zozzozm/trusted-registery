@@ -27,7 +27,7 @@ npm run start:dev    # start the server
 | GET | /api/registry/health | Server status |
 | GET | /api/registry/current | Active signed document |
 | GET | /api/registry/pending | Unsigned draft for next version |
-| GET | /api/registry/nodes | List nodes (filter: ?wallet= ?role=) |
+| GET | /api/registry/nodes | List nodes (filter: ?role=) |
 | GET | /api/registry/nodes/:id | Single node record |
 | GET | /api/registry/audit | Event audit log |
 | POST | /api/registry/verify | ⭐ Verify any document — step by step |

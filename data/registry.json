@@ -20,9 +20,6 @@
       "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
       "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
       "role": "USER_COSIGNER",
-      "walletScope": [
-        "wallet-003"
-      ],
       "nodeId": "fd4e272dc6dbc4adf3f96c7d314918ca46e631711e9ebb786455b333f69e1439",
       "status": "ACTIVE",
       "enrolledAt": 1773186725
