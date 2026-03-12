@@ -14,10 +14,11 @@ The MPC wallet needs to know **which nodes are legitimate** before participating
 │  Cloud App   │   GET /data/registry.json                     │  (trusted-registry) │
 └──────┬───────┘                                               └─────────────────────┘
        │
-       │  1. Fetch registry.json
+       │  1. Fetch registry.json (primary URL or mirrors)
        │  2. Verify document integrity (hash, merkle, chain, signatures)
-       │  3. Extract active nodes for wallet scope
-       │  4. Use node keys (ikPub, ekPub) in MPC ceremonies
+       │  3. Check threshold and endpoints
+       │  4. Extract active nodes for wallet scope
+       │  5. Use node keys (ikPub, ekPub) in MPC ceremonies
        │
 ```
 
@@ -34,6 +35,13 @@ The `registry.json` file contains a single `RegistryDocument`:
   "issuedAt":         1710000000,               // unix timestamp (seconds)
   "expiresAt":        1712592000,               // unix timestamp (seconds)
   "adminAddresses":   ["0xAbc...", "0xDef...", "0x123..."],  // Ethereum addresses of admins
+  "backofficeServicePubkey": "64-hex-chars...", // backoffice service public key (or null)
+  "threshold":        2,                        // minimum node count for MPC ceremonies (auto-managed)
+  "endpoints": {                                // where clients can fetch registry updates (or null)
+    "primary":    "https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json",
+    "mirrors":    ["https://mirror-1.custody.internal/registry.json"],
+    "updated_at": "2026-03-12T10:30:00.000Z"
+  },
   "nodes": [
     {
       "nodeId":      "sha256-derived-id",
@@ -65,26 +73,56 @@ The `registry.json` file contains a single `RegistryDocument`:
 | `PROVIDER_COSIGNER` | The cloud service's key-share holder |
 | `RECOVERY_GUARDIAN` | Backup signer used for recovery flows |
 
+### Threshold
+
+The `threshold` field indicates the minimum number of active nodes required. It is automatically managed:
+- **+1** when a node is enrolled
+- **-1** when a node is revoked
+- Can also be manually set via `POST /registry/threshold/propose`
+- During verification, `threshold` must be ≤ the number of active nodes
+
+### Endpoints
+
+The `endpoints` object tells clients where to fetch the registry:
+- `primary` — the main URL (e.g., GitHub raw URL)
+- `mirrors` — fallback URLs for redundancy
+- `updated_at` — ISO timestamp of when endpoints were last configured
+- The entire `endpoints` object is signed by the admins, so it cannot be tampered with
+
+### Backoffice Service Public Key
+
+The `backofficeServicePubkey` is a 32-byte hex public key for the backoffice service. It is included in the signed document hash, so any change requires admin multi-sig approval.
+
 ---
 
 ## 3. Fetching the Registry
 
-Fetch the raw `registry.json` from GitHub:
+### Using Endpoints from the Document
 
-```
-GET https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json
-```
-
-### TypeScript Example
+If you already have a cached registry, use its `endpoints` field:
 
 ```typescript
-const REGISTRY_URL =
-  'https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json';
+async function fetchRegistry(cachedDoc?: RegistryDocument): Promise<RegistryDocument> {
+  const urls: string[] = [];
 
-async function fetchRegistry(): Promise<RegistryDocument> {
-  const res = await fetch(REGISTRY_URL);
-  if (!res.ok) throw new Error(`Failed to fetch registry: ${res.status}`);
-  return res.json();
+  if (cachedDoc?.endpoints) {
+    urls.push(cachedDoc.endpoints.primary);
+    urls.push(...(cachedDoc.endpoints.mirrors || []));
+  } else {
+    // Bootstrap URL — hardcoded for first fetch
+    urls.push('https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json');
+  }
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (res.ok) return res.json();
+    } catch {
+      continue; // try next mirror
+    }
+  }
+
+  throw new Error('Failed to fetch registry from all endpoints');
 }
 ```
 
@@ -94,6 +132,7 @@ async function fetchRegistry(): Promise<RegistryDocument> {
 - **Cache locally**: Store the last valid document on disk as a fallback.
 - **Version check**: Only process if `version` > your cached version.
 - **Expiry**: Reject documents where `Date.now()/1000 > expiresAt`.
+- **Endpoint discovery**: After successful verification, update your fetch URLs from the document's `endpoints` field.
 
 ---
 
@@ -128,7 +167,7 @@ function checkStructure(doc: any): void {
   const required = [
     'registryId', 'version', 'issuedAt', 'expiresAt',
     'adminAddresses', 'nodes', 'merkleRoot',
-    'prevDocumentHash', 'documentHash', 'signatures',
+    'prevDocumentHash', 'documentHash', 'signatures', 'threshold',
   ];
   const missing = required.filter(f => doc[f] === undefined);
   if (missing.length) throw new Error(`Missing fields: ${missing.join(', ')}`);
@@ -157,15 +196,18 @@ function deterministicHash(obj: object): string {
 
 function checkDocumentHash(doc: RegistryDocument): void {
   const unsigned = {
-    registryId:       doc.registryId,
-    version:          doc.version,
-    issuedAt:         doc.issuedAt,
-    expiresAt:        doc.expiresAt,
-    adminAddresses:   doc.adminAddresses,
-    nodes:            doc.nodes,
-    merkleRoot:       doc.merkleRoot,
-    prevDocumentHash: doc.prevDocumentHash,
-    documentHash:     '',  // set to empty string before hashing
+    registryId:            doc.registryId,
+    version:               doc.version,
+    issuedAt:              doc.issuedAt,
+    expiresAt:             doc.expiresAt,
+    adminAddresses:        doc.adminAddresses,
+    backofficeServicePubkey: doc.backofficeServicePubkey,
+    threshold:             doc.threshold,
+    endpoints:             doc.endpoints,
+    nodes:                 doc.nodes,
+    merkleRoot:            doc.merkleRoot,
+    prevDocumentHash:      doc.prevDocumentHash,
+    documentHash:          '',  // set to empty string before hashing
   };
   const expected = deterministicHash(unsigned);
   if (expected !== doc.documentHash) {
@@ -216,16 +258,24 @@ const EIP712_TYPES = {
     { name: 'enrolledAt',  type: 'uint256' },
     { name: 'revokedAt',   type: 'uint256' },
   ],
+  Endpoints: [
+    { name: 'primary',    type: 'string' },
+    { name: 'mirrors',    type: 'string[]' },
+    { name: 'updated_at', type: 'string' },
+  ],
   RegistryDocument: [
-    { name: 'registryId',       type: 'string' },
-    { name: 'version',          type: 'uint256' },
-    { name: 'issuedAt',         type: 'uint256' },
-    { name: 'expiresAt',        type: 'uint256' },
-    { name: 'adminAddresses',   type: 'address[]' },
-    { name: 'nodes',            type: 'NodeRecord[]' },
-    { name: 'merkleRoot',       type: 'string' },
-    { name: 'prevDocumentHash', type: 'string' },
-    { name: 'documentHash',     type: 'string' },
+    { name: 'registryId',            type: 'string' },
+    { name: 'version',               type: 'uint256' },
+    { name: 'issuedAt',              type: 'uint256' },
+    { name: 'expiresAt',             type: 'uint256' },
+    { name: 'adminAddresses',        type: 'address[]' },
+    { name: 'backofficeServicePubkey', type: 'string' },
+    { name: 'threshold',             type: 'uint256' },
+    { name: 'endpoints',             type: 'Endpoints' },
+    { name: 'nodes',                 type: 'NodeRecord[]' },
+    { name: 'merkleRoot',            type: 'string' },
+    { name: 'prevDocumentHash',      type: 'string' },
+    { name: 'documentHash',          type: 'string' },
   ],
 };
 
@@ -236,12 +286,17 @@ function checkSignatures(doc: RegistryDocument): void {
 
   // Build typed data value (normalize for EIP-712)
   const value = {
-    registryId:       doc.registryId,
-    version:          doc.version,
-    issuedAt:         doc.issuedAt,
-    expiresAt:        doc.expiresAt,
-    adminAddresses:   doc.adminAddresses,
-    nodes:            doc.nodes.map(n => ({
+    registryId:            doc.registryId,
+    version:               doc.version,
+    issuedAt:              doc.issuedAt,
+    expiresAt:             doc.expiresAt,
+    adminAddresses:        doc.adminAddresses,
+    backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
+    threshold:             doc.threshold,
+    endpoints:             doc.endpoints
+      ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
+      : { primary: '', mirrors: [], updated_at: '' },
+    nodes:                 doc.nodes.map(n => ({
       nodeId:      n.nodeId,
       ikPub:       n.ikPub,
       ekPub:       n.ekPub,
@@ -280,6 +335,33 @@ function checkSignatures(doc: RegistryDocument): void {
     throw new Error(`Only ${validCount} valid signatures, need ${MIN_SIGNATURES}`);
   }
 }
+
+// ── Step 6: Threshold check ──────────────────────────────────────────────────
+function checkThreshold(doc: RegistryDocument): void {
+  const activeCount = doc.nodes.filter(n => n.status === 'ACTIVE').length;
+  if (doc.threshold > activeCount) {
+    throw new Error(`Threshold (${doc.threshold}) exceeds active node count (${activeCount})`);
+  }
+}
+
+// ── Step 7: Endpoints check ──────────────────────────────────────────────────
+function checkEndpoints(doc: RegistryDocument): void {
+  if (!doc.endpoints) return; // endpoints are optional
+
+  const urlPattern = /^https?:\/\/.+/;
+  if (!urlPattern.test(doc.endpoints.primary)) {
+    throw new Error(`Invalid primary endpoint URL: ${doc.endpoints.primary}`);
+  }
+  for (const mirror of doc.endpoints.mirrors) {
+    if (!urlPattern.test(mirror)) {
+      throw new Error(`Invalid mirror URL: ${mirror}`);
+    }
+  }
+  const allUrls = [doc.endpoints.primary, ...doc.endpoints.mirrors];
+  if (new Set(allUrls).size !== allUrls.length) {
+    throw new Error('Duplicate URLs in endpoints');
+  }
+}
 ```
 
 ### 4.3 — Full Verification Function
@@ -291,6 +373,8 @@ function verifyRegistry(doc: RegistryDocument): void {
   checkDocumentHash(doc);
   checkMerkleRoot(doc);
   checkSignatures(doc);
+  checkThreshold(doc);
+  checkEndpoints(doc);
   // All checks passed — document is authentic and untampered
 }
 ```
@@ -326,7 +410,16 @@ function getNodesByRole(
 }
 ```
 
-### 5.3 — MPC Ceremony Integration
+### 5.3 — Check Threshold Before Ceremony
+
+```typescript
+function canStartCeremony(doc: RegistryDocument, walletId: string): boolean {
+  const activeNodes = getActiveNodesForWallet(doc, walletId);
+  return activeNodes.length >= doc.threshold;
+}
+```
+
+### 5.4 — MPC Ceremony Integration
 
 ```typescript
 async function startSigningCeremony(walletId: string, txPayload: any) {
@@ -334,7 +427,12 @@ async function startSigningCeremony(walletId: string, txPayload: any) {
   const registry = await fetchRegistry();
   verifyRegistry(registry);
 
-  // 2. Resolve the signing quorum
+  // 2. Check threshold
+  if (!canStartCeremony(registry, walletId)) {
+    throw new Error(`Not enough active nodes (need ${registry.threshold})`);
+  }
+
+  // 3. Resolve the signing quorum
   const userNode     = getNodesByRole(registry, walletId, 'USER_COSIGNER')[0];
   const providerNode = getNodesByRole(registry, walletId, 'PROVIDER_COSIGNER')[0];
 
@@ -342,13 +440,30 @@ async function startSigningCeremony(walletId: string, txPayload: any) {
     throw new Error('Missing required cosigners for this wallet');
   }
 
-  // 3. Use ikPub / ekPub to establish encrypted channels and run MPC
+  // 4. Use ikPub / ekPub to establish encrypted channels and run MPC
   const participants = [
     { nodeId: userNode.nodeId,     ikPub: userNode.ikPub,     ekPub: userNode.ekPub },
     { nodeId: providerNode.nodeId, ikPub: providerNode.ikPub, ekPub: providerNode.ekPub },
   ];
 
   // ... initiate MPC signing protocol with these participants
+}
+```
+
+### 5.5 — Using the Backoffice Service Public Key
+
+```typescript
+function getBackofficePubkey(doc: RegistryDocument): string | null {
+  return doc.backofficeServicePubkey;
+}
+
+// Use for establishing authenticated communication with the backoffice service
+async function connectToBackoffice(doc: RegistryDocument) {
+  const pubkey = getBackofficePubkey(doc);
+  if (!pubkey) throw new Error('No backoffice service public key configured');
+
+  // Use pubkey for key exchange or signature verification with backoffice
+  // ...
 }
 ```
 
@@ -426,8 +541,10 @@ function checkHashChain(
 | **Admin key compromise** | 2-of-3 multi-sig means a single compromised key cannot produce a valid document. |
 | **Rollback attack** | High-water mark tracking prevents serving old documents. |
 | **Expired registry** | Always check `expiresAt`. Refuse to use expired documents. |
-| **Man-in-the-middle** | HTTPS to GitHub + signature verification. Consider pinning the GitHub TLS certificate. |
-| **Node key rotation** | When a node is revoked, its `status` changes to `REVOKED`. Always filter for `ACTIVE` nodes. |
+| **Man-in-the-middle** | HTTPS + EIP-712 signature verification. Endpoints are signed in the document. |
+| **Node key rotation** | When a node is revoked, its `status` changes to `REVOKED` and threshold decrements. Always filter for `ACTIVE` nodes. |
+| **Endpoint tampering** | Endpoint URLs are covered by the document hash and admin signatures. Changing them requires multi-sig approval. |
+| **Insufficient quorum** | Threshold validation ensures you have enough active nodes before starting MPC ceremonies. |
 
 ### Trust Root Summary
 
@@ -438,7 +555,10 @@ Admin Addresses (hardcoded)
   └── verify EIP-712 signatures on registry document
         └── documentHash (SHA-256 integrity of all fields)
               ├── merkleRoot (integrity of individual nodes)
-              └── prevDocumentHash (chain to previous version)
+              ├── prevDocumentHash (chain to previous version)
+              ├── backofficeServicePubkey (backoffice authentication)
+              ├── threshold (minimum node quorum)
+              └── endpoints (primary + mirrors, signed discovery)
 ```
 
 ---
@@ -449,7 +569,7 @@ The wallet app needs these packages for verification:
 
 ```json
 {
-  "ethers": "^6.x",     // EIP-712 signature recovery
+  "ethers": "^6.x"     // EIP-712 signature recovery
 }
 ```
 
@@ -481,17 +601,26 @@ interface AdminSignature {
   signature:    string;
 }
 
+interface RegistryEndpoints {
+  primary:    string;
+  mirrors:    string[];
+  updated_at: string;
+}
+
 interface RegistryDocument {
-  registryId:       string;
-  version:          number;
-  issuedAt:         number;
-  expiresAt:        number;
-  adminAddresses:   string[];
-  nodes:            NodeRecord[];
-  merkleRoot:       string;
-  prevDocumentHash: string | null;
-  documentHash:     string;
-  signatures:       AdminSignature[];
+  registryId:            string;
+  version:               number;
+  issuedAt:              number;
+  expiresAt:             number;
+  adminAddresses:        string[];
+  backofficeServicePubkey: string | null;
+  threshold:             number;
+  endpoints:             RegistryEndpoints | null;
+  nodes:                 NodeRecord[];
+  merkleRoot:            string;
+  prevDocumentHash:      string | null;
+  documentHash:          string;
+  signatures:            AdminSignature[];
 }
 
 interface HighWaterMark {
@@ -501,3 +630,28 @@ interface HighWaterMark {
   updatedAt:   number;
 }
 ```
+
+---
+
+## 11. API Endpoints Reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/registry/current` | Get current published document |
+| `GET` | `/api/registry/health` | Health check with admin info |
+| `GET` | `/api/registry/nodes` | List nodes (filter: `?wallet=x&role=y`) |
+| `GET` | `/api/registry/nodes/:nodeId` | Get specific node |
+| `POST` | `/api/registry/pending` | Create new draft |
+| `GET` | `/api/registry/pending` | Get pending draft |
+| `DELETE` | `/api/registry/pending` | Delete pending draft |
+| `GET` | `/api/registry/pending/message` | Get EIP-712 payload for signing |
+| `POST` | `/api/registry/pending/sign` | Submit admin signature |
+| `POST` | `/api/registry/nodes/enroll` | Propose node enrollment (+1 threshold) |
+| `POST` | `/api/registry/nodes/revoke` | Propose node revocation (-1 threshold) |
+| `POST` | `/api/registry/admins/propose` | Propose admin rotation |
+| `POST` | `/api/registry/backoffice-pubkey/propose` | Propose backoffice public key |
+| `POST` | `/api/registry/threshold/propose` | Propose threshold change |
+| `POST` | `/api/registry/endpoints/propose` | Propose endpoint URLs |
+| `POST` | `/api/registry/verify` | Verify a document (10-step pipeline) |
+| `POST` | `/api/registry/publish` | Publish signed document |
+| `GET` | `/api/registry/audit` | Get audit log |

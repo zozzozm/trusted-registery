@@ -7,7 +7,7 @@ import { RegistryService } from './registry.service'
 import {
   EnrollNodeDto, RevokeNodeDto, SignPendingDto,
   ProposeAdminsDto, ProposeBackofficePubkeyDto, ProposeThresholdDto,
-  VerifyDocumentDto, PublishDocumentDto
+  ProposeEndpointsDto, VerifyDocumentDto, PublishDocumentDto
 } from './dto'
 
 @Controller('registry')
@@ -68,6 +68,10 @@ export class RegistryController {
   @Post('threshold/propose')
   @HttpCode(HttpStatus.OK)
   proposeThreshold(@Body() body: ProposeThresholdDto) { return this.svc.proposeThreshold(body) }
+
+  @Post('endpoints/propose')
+  @HttpCode(HttpStatus.OK)
+  proposeEndpoints(@Body() body: ProposeEndpointsDto) { return this.svc.proposeEndpoints(body) }
 
   @Post('publish')
   @HttpCode(HttpStatus.OK)

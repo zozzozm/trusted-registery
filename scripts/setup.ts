@@ -37,6 +37,7 @@ async function main() {
     adminAddresses:        adminAddresses,
     backofficeServicePubkey: null,
     threshold:             0,
+    endpoints:             null,
     nodes:                 [],
     merkleRoot:            computeMerkleRoot([]),
     prevDocumentHash:      null,

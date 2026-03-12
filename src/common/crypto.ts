@@ -4,7 +4,7 @@
 
 import { ethers } from 'ethers'
 import { createHash } from 'crypto'
-import { UnsignedDocument, AdminSignature, VerifyResult, NodeRecord } from './types'
+import { UnsignedDocument, AdminSignature, VerifyResult, NodeRecord, RegistryEndpoints } from './types'
 
 // ── Hashing ───────────────────────────────────────────────────────────────────
 
@@ -84,6 +84,11 @@ export const EIP712_TYPES = {
     { name: 'enrolledAt',  type: 'uint256' },
     { name: 'revokedAt',   type: 'uint256' },
   ],
+  Endpoints: [
+    { name: 'primary',    type: 'string' },
+    { name: 'mirrors',    type: 'string[]' },
+    { name: 'updated_at', type: 'string' },
+  ],
   RegistryDocument: [
     { name: 'registryId',            type: 'string' },
     { name: 'version',               type: 'uint256' },
@@ -92,6 +97,7 @@ export const EIP712_TYPES = {
     { name: 'adminAddresses',        type: 'address[]' },
     { name: 'backofficeServicePubkey', type: 'string' },
     { name: 'threshold',             type: 'uint256' },
+    { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkleRoot',            type: 'string' },
     { name: 'prevDocumentHash',      type: 'string' },
@@ -107,6 +113,7 @@ type DocForSigning = {
   adminAddresses: string[]
   backofficeServicePubkey: string | null
   threshold: number
+  endpoints: RegistryEndpoints | null
   nodes: NodeRecord[]
   merkleRoot: string
   prevDocumentHash: string | null
@@ -126,6 +133,9 @@ export function buildTypedDataValue(doc: DocForSigning) {
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
     threshold:             doc.threshold,
+    endpoints:             doc.endpoints
+      ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
+      : { primary: '', mirrors: [], updated_at: '' },
     nodes:                 doc.nodes.map(n => ({
       nodeId:      n.nodeId,
       ikPub:       n.ikPub,
@@ -199,6 +209,7 @@ export function verifyMultiSig(
     adminAddresses: string[]
     backofficeServicePubkey: string | null
     threshold: number
+    endpoints: RegistryEndpoints | null
     nodes: NodeRecord[]
     merkleRoot: string
     prevDocumentHash: string | null

@@ -37,6 +37,18 @@ class AdminSignatureDto {
   signature: string
 }
 
+class EndpointsDto {
+  @IsString()
+  primary: string
+
+  @IsArray()
+  @IsString({ each: true })
+  mirrors: string[]
+
+  @IsString()
+  updated_at: string
+}
+
 export class VerifyDocumentDto {
   @IsString()
   registryId: string
@@ -60,6 +72,11 @@ export class VerifyDocumentDto {
 
   @IsNumber()
   threshold: number
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EndpointsDto)
+  endpoints: EndpointsDto | null
 
   @IsArray()
   @ValidateNested({ each: true })

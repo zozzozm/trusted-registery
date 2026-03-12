@@ -17,6 +17,12 @@ export interface AdminSignature {
   signature:    string
 }
 
+export interface RegistryEndpoints {
+  primary:    string
+  mirrors:    string[]
+  updated_at: string
+}
+
 export interface RegistryDocument {
   registryId:            string
   version:               number
@@ -25,6 +31,7 @@ export interface RegistryDocument {
   adminAddresses:        string[]
   backofficeServicePubkey: string | null
   threshold:             number
+  endpoints:             RegistryEndpoints | null
   nodes:                 NodeRecord[]
   merkleRoot:            string
   prevDocumentHash:      string | null
