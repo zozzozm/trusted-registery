@@ -1,13 +1,20 @@
 {
   "registryId": "dev-custody-v1",
-  "version": 5,
-  "issuedAt": 1773186693,
-  "expiresAt": 1773791493,
+  "version": 6,
+  "issuedAt": 1773322839,
+  "expiresAt": 1773927639,
   "adminAddresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
     "0xff6Cb288bFc8D8b8B43c4B59439E4b66dd0e11c4"
   ],
+  "backofficeServicePubkey": null,
+  "threshold": 0,
+  "endpoints": {
+    "primary": "https://raw.githubusercontent.com/zozzozm/trusted-registery/refs/heads/main/data/registry.json",
+    "mirrors": [],
+    "updated_at": "2026-03-12T13:41:08.472Z"
+  },
   "nodes": [
     {
       "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
@@ -22,16 +29,16 @@
     }
   ],
   "merkleRoot": "53d669550a95100ad270c2dd99e807b2ff633532ad9e662e5719b3e1f1313ddc",
-  "prevDocumentHash": "f0c6ea5d84d26ca6d1a45ebb29513311ad23bf8209f162c80c0e506e1f76f60e",
-  "documentHash": "36c4939a6b218664d958749a3b78307268272cae97304ea88e20639741f679ea",
+  "prevDocumentHash": "36c4939a6b218664d958749a3b78307268272cae97304ea88e20639741f679ea",
+  "documentHash": "ba99642569170e8264f27803674093d6815dce10c63c2507f4d52f0f4c7bffd1",
   "signatures": [
     {
       "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
-      "signature": "0x1036ba851644e865754e045c96e9c3d0c36e23ee6114331b1f7f0f639d2434d81cc4fa1c49ddeb4390e7537583fbf01169e79e6bdb484e54ad4ef2d8e5da72e31b"
+      "signature": "0xe5e25955c0ad10e78acde198e69f8ff8a30176bf291c8a36b62309336e0e03ff527db1ad6efcf163b479f34285747e1899819baeb3084d33695e5f10623ff2751b"
     },
     {
       "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
-      "signature": "0xa4dd54192f1657997243c65d36e5f8b7d27d6ac7380ca57111b22726fefe4f745425ecb573b6f73c5636b2a0f524a845c203a39be826cf1ba93026d9e82519e71b"
+      "signature": "0xbae2aa014d8825f924543eb77fd84143d913414f123c0efb5f55d0ccd0305a623193567a3df36a2344d991cbec6726b9d2f6415b9852588600c525db769aba761b"
     }
   ]
 }

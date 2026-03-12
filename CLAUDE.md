@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MPC Custody Node Registry — a NestJS server that manages a cryptographically signed registry of MPC custody nodes. Registry documents are versioned, hash-chained, Merkle-rooted, and require multi-signature (2-of-3) Ed25519 admin approval before publishing.
+MPC Custody Node Registry — a NestJS server that manages a cryptographically signed registry of MPC custody nodes. Registry documents are versioned, hash-chained, Merkle-rooted, and require multi-signature (2-of-3) EIP-712 admin approval before publishing.
 
 ## Commands
 
 - `npm run start:dev` — run dev server (ts-node-dev, auto-restarts on changes)
 - `npm run build` — compile TypeScript to `dist/`
 - `npm run test` — run all tests (`jest --runInBand`)
-- `npm run keygen` — generate 3 admin Ed25519 keypairs, writes `.env`
+- `npm run keygen` — generate 3 admin Ethereum keypairs, writes `.env`
 - `npm run setup` — create and sign genesis (v1) registry document
 - `ADMIN_INDEX=0 npm run sign` — sign the pending draft as a specific admin
 
@@ -29,23 +29,48 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 ### Core Flow
 
 1. **Propose changes** — `POST /nodes/enroll` or `/nodes/revoke` creates/modifies a staged draft in memory
-2. **Sign draft** — `POST /pending/sign` adds an admin signature (or use `npm run sign` offline)
-3. **Publish** — `POST /publish` validates the fully-signed document through 7 verification steps (structure, registry ID, expiry, document hash, merkle root, hash chain, multi-sig) and persists it
+2. **Configure document** — `POST /admins/propose`, `/backoffice-pubkey/propose`, `/threshold/propose`, `/endpoints/propose` modify draft metadata
+3. **Sign draft** — `POST /pending/sign` adds an admin signature (or use `npm run sign` offline)
+4. **Publish** — `POST /publish` validates the fully-signed document through 10 verification steps and persists it
 
 ### Key Files
 
-- `src/common/crypto.ts` — Ed25519 signing/verification (`@noble/ed25519`), SHA-256 hashing with deterministic JSON serialization (sorted keys), Merkle tree construction
-- `src/common/types.ts` — Core types: `RegistryDocument`, `NodeRecord`, `AdminSignature`, `UnsignedDocument`
-- `src/common/config.ts` — Config from env vars; admin public keys are the trust root
+- `src/common/crypto.ts` — EIP-712 typed data signing/verification (ethers.js), SHA-256 hashing with deterministic JSON serialization (sorted keys), Merkle tree construction
+- `src/common/types.ts` — Core types: `RegistryDocument`, `NodeRecord`, `AdminSignature`, `UnsignedDocument`, `RegistryEndpoints`
+- `src/common/config.ts` — Config from env vars; admin Ethereum addresses are the trust root
 - `src/registry/registry.service.ts` — All business logic: in-memory state (currentDoc, stagedDraft, auditLog), verification pipeline, disk persistence
 - `src/registry/registry.controller.ts` — REST endpoints mapping to service methods
+
+### Registry Document Fields
+
+- **Core**: `registryId`, `version`, `issuedAt`, `expiresAt`
+- **Admin**: `adminAddresses` (Ethereum addresses, 2-of-3 multi-sig)
+- **Nodes**: `nodes[]` (NodeRecord with ikPub, ekPub, role, walletScope, status)
+- **Backoffice**: `backofficeServicePubkey` (32-byte hex public key, nullable)
+- **Threshold**: `threshold` (auto-increments on enroll, auto-decrements on revoke, must be <= active node count)
+- **Endpoints**: `endpoints` (nullable object with `primary` URL, `mirrors[]` URLs, `updated_at` timestamp)
+- **Integrity**: `merkleRoot`, `prevDocumentHash`, `documentHash`
+- **Auth**: `signatures[]` (EIP-712 typed data signatures)
 
 ### Cryptographic Design
 
 - **Document hash**: SHA-256 of deterministic JSON (keys sorted recursively), computed with `documentHash` field set to empty string
 - **Merkle root**: binary Merkle tree over `hash("leaf:" + hash(nodeRecord))` for each node, sorted by `nodeId`
 - **Hash chain**: each document's `prevDocumentHash` links to the previous version's `documentHash`
-- **Signatures**: Ed25519 signatures over the `documentHash` hex string; `verifyMultiSig` checks for ≥ `MIN_SIGNATURES` valid unique admin signatures
+- **Signatures**: EIP-712 typed data signatures over the full document; `verifyMultiSig` checks for ≥ `MIN_SIGNATURES` valid unique admin signatures
+
+### Verification Pipeline (10 steps)
+
+1. Structure — all required fields present
+2. Registry ID — matches configured ID
+3. Expiry — document not expired
+4. Document hash — SHA-256 integrity check
+5. Merkle root — node list integrity
+6. Hash chain — links to previous version
+7. Multi-sig — 2-of-3 EIP-712 admin signatures
+8. Admin addresses — minimum count validation
+9. Threshold — must be <= active node count
+10. Endpoints — URL format validation, no duplicates
 
 ### Testing
 

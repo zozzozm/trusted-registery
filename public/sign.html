@@ -92,6 +92,8 @@
         <div class="value" id="cur-admins"></div>
         <label style="margin-top:0.5rem;">Threshold</label>
         <div class="value" id="cur-threshold"></div>
+        <label style="margin-top:0.5rem;">Endpoints</label>
+        <div class="value" id="cur-endpoints"></div>
         <label style="margin-top:0.5rem;">Expires</label>
         <div class="value" id="cur-expires"></div>
       </div>
@@ -111,6 +113,8 @@
         <div class="value" id="mgmt-draft-nodes"></div>
         <label style="margin-top:0.5rem;">Threshold</label>
         <div class="value" id="mgmt-draft-threshold"></div>
+        <label style="margin-top:0.5rem;">Endpoints</label>
+        <div class="value" id="mgmt-draft-endpoints"></div>
         <label style="margin-top:0.5rem;">Document Hash</label>
         <div class="value mono" id="mgmt-draft-hash"></div>
         <label style="margin-top:0.5rem;">Signatures</label>
@@ -188,6 +192,28 @@
       <div id="admin-msg"></div>
     </div>
 
+    <!-- Configure Endpoints -->
+    <div class="section">
+      <h2>Registry Endpoints</h2>
+      <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+        Set the primary URL and mirror URLs where clients fetch the registry document.
+      </p>
+      <div class="form-group">
+        <label>Primary URL</label>
+        <input id="propose-primary-url" placeholder="https://raw.githubusercontent.com/...">
+      </div>
+      <div id="mirror-inputs">
+        <div class="form-group">
+          <label>Mirror 0</label>
+          <input class="mirror-url-input" placeholder="https://...">
+        </div>
+      </div>
+      <button class="secondary" onclick="addMirrorInput()">+ Add Mirror</button>
+      <button class="secondary" onclick="loadCurrentEndpoints()">Load Current</button>
+      <button class="purple" onclick="proposeEndpoints()">Propose Endpoints</button>
+      <div id="endpoints-msg"></div>
+    </div>
+
     <!-- Node List -->
     <div class="section">
       <h2>Active Nodes</h2>
@@ -214,6 +240,8 @@
         <div class="value" id="draft-admins"></div>
         <label style="margin-top:0.5rem;">Threshold</label>
         <div class="value" id="draft-threshold"></div>
+        <label style="margin-top:0.5rem;">Endpoints</label>
+        <div class="value" id="draft-endpoints"></div>
         <label style="margin-top:0.5rem;">Document Hash</label>
         <div class="value mono" id="draft-hash"></div>
         <label style="margin-top:0.5rem;">Merkle Root</label>
@@ -324,6 +352,7 @@
         document.getElementById('cur-version').textContent = 'v' + doc.version
         document.getElementById('cur-nodes').textContent = doc.nodes.length + ' (' + doc.nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
         document.getElementById('cur-threshold').textContent = doc.threshold ?? 0
+        document.getElementById('cur-endpoints').innerHTML = renderEndpoints(doc.endpoints)
         document.getElementById('cur-admins').innerHTML = doc.adminAddresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
@@ -380,6 +409,7 @@
       document.getElementById('mgmt-draft-version').textContent = 'v' + draft.version
       document.getElementById('mgmt-draft-nodes').textContent = draft.nodes.length + ' node(s)'
       document.getElementById('mgmt-draft-threshold').textContent = draft.threshold ?? 0
+      document.getElementById('mgmt-draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
       document.getElementById('mgmt-draft-hash').textContent = draft.documentHash
       document.getElementById('mgmt-draft-sigs').textContent = draft.signatures.length + '/' + minSignatures
       document.getElementById('manage-draft-info').classList.remove('hidden')
@@ -479,6 +509,7 @@
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
         document.getElementById('draft-threshold').textContent = draft.threshold ?? 0
+        document.getElementById('draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
         document.getElementById('draft-hash').textContent = draft.documentHash
         document.getElementById('draft-merkle').textContent = draft.merkleRoot
         document.getElementById('sign-draft-info').classList.remove('hidden')
@@ -673,7 +704,72 @@
       } catch (e) { showMsg('admin-msg', e.message, false) }
     }
 
+    // ── Endpoints Proposal ─────────────────────────────────────────────────
+    function addMirrorInput() {
+      const container = document.getElementById('mirror-inputs')
+      const count = container.querySelectorAll('.mirror-url-input').length
+      const div = document.createElement('div')
+      div.className = 'form-group'
+      div.innerHTML = `<label>Mirror ${count}</label><input class="mirror-url-input" placeholder="https://...">`
+      container.appendChild(div)
+    }
+
+    async function loadCurrentEndpoints() {
+      try {
+        const res = await fetch(`${API}/current`)
+        if (!res.ok) { showMsg('endpoints-msg', 'No current registry', false); return }
+        const doc = await res.json()
+        const ep = doc.endpoints
+        document.getElementById('propose-primary-url').value = ep?.primary || ''
+        const container = document.getElementById('mirror-inputs')
+        container.innerHTML = ''
+        const mirrors = ep?.mirrors || ['']
+        if (mirrors.length === 0) mirrors.push('')
+        mirrors.forEach((m, i) => {
+          const div = document.createElement('div')
+          div.className = 'form-group'
+          div.innerHTML = `<label>Mirror ${i}</label><input class="mirror-url-input" placeholder="https://..." value="${m}">`
+          container.appendChild(div)
+        })
+        showMsg('endpoints-msg', 'Loaded current endpoints', true)
+      } catch (e) { showMsg('endpoints-msg', e.message, false) }
+    }
+
+    async function proposeEndpoints() {
+      const primary = document.getElementById('propose-primary-url').value.trim()
+      if (!primary) {
+        showMsg('endpoints-msg', 'Primary URL is required', false); return
+      }
+      const mirrorInputs = document.querySelectorAll('.mirror-url-input')
+      const mirrors = Array.from(mirrorInputs).map(el => el.value.trim()).filter(Boolean)
+      try {
+        const res = await fetch(`${API}/endpoints/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ primary, mirrors }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('endpoints-msg', 'Endpoints proposed! Draft created (v' + result.version + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('endpoints-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('endpoints-msg', e.message, false) }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────
+    function renderEndpoints(ep) {
+      if (!ep) return '<span style="color:#8b949e;">(not set)</span>'
+      let html = `<div class="mono" style="font-size:0.8rem;">Primary: ${ep.primary}</div>`
+      if (ep.mirrors?.length) {
+        html += ep.mirrors.map((m, i) => `<div class="mono" style="font-size:0.8rem;">Mirror ${i}: ${m}</div>`).join('')
+      }
+      html += `<div style="font-size:0.75rem; color:#8b949e;">Updated: ${ep.updated_at}</div>`
+      return html
+    }
+
     function showMsg(id, text, success) {
       const el = document.getElementById(id)
       el.innerHTML = `<div class="msg ${success ? 'msg-success' : 'msg-error'}">${success ? '<span class="success">' : '<span class="error-text">'}${text}</span></div>`

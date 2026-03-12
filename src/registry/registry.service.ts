@@ -9,7 +9,7 @@ import { dirname, resolve } from 'path'
 import { ethers } from 'ethers'
 import {
   RegistryDocument, UnsignedDocument, NodeRecord, AdminSignature,
-  NodeRole
+  NodeRole, RegistryEndpoints
 } from '../common/types'
 import {
   computeDocumentHash, computeMerkleRoot, verifyMultiSig,
@@ -206,6 +206,47 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
+  /** POST /registry/endpoints/propose — propose registry endpoints */
+  proposeEndpoints(body: { primary: string; mirrors?: string[] }): RegistryDocument {
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
+    const urlPattern = /^https?:\/\/.+/
+    if (!urlPattern.test(body.primary)) {
+      throw new BadRequestException('primary must be a valid HTTP(S) URL')
+    }
+    const mirrors = body.mirrors ?? []
+    for (const m of mirrors) {
+      if (!urlPattern.test(m)) {
+        throw new BadRequestException(`Invalid mirror URL: ${m}`)
+      }
+    }
+
+    // Check for duplicates between primary and mirrors
+    const allUrls = [body.primary, ...mirrors]
+    if (new Set(allUrls).size !== allUrls.length) {
+      throw new BadRequestException('Duplicate URLs in primary/mirrors')
+    }
+
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    this.stagedDraft.endpoints = {
+      primary:    body.primary,
+      mirrors:    mirrors,
+      updated_at: new Date().toISOString(),
+    }
+    this._refreshDraftHash()
+
+    this.audit('ENDPOINTS_PROPOSED', { endpoints: this.stagedDraft.endpoints })
+    return this.stagedDraft
+  }
+
   /** GET /registry/node/:nodeId */
   getNode(nodeId: string): NodeRecord {
     const node = this.currentDoc?.nodes.find(n => n.nodeId === nodeId)
@@ -292,6 +333,7 @@ export class RegistryService implements OnModuleInit {
       adminAddresses:        doc.adminAddresses,
       backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
       threshold:             doc.threshold ?? 0,
+      endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkleRoot:            doc.merkleRoot,
       prevDocumentHash:      doc.prevDocumentHash,
@@ -368,6 +410,31 @@ export class RegistryService implements OnModuleInit {
       fail('threshold', `Threshold (${threshold}) exceeds active node count (${activeNodes})`)
     } else {
       pass('threshold', `Threshold ${threshold} <= ${activeNodes} active nodes`)
+    }
+
+    // Step 10 — Endpoints validation
+    const endpoints = doc.endpoints ?? null
+    if (endpoints) {
+      const urlPattern = /^https?:\/\/.+/
+      if (!endpoints.primary || !urlPattern.test(endpoints.primary)) {
+        fail('endpoints', `Invalid primary URL: ${endpoints.primary}`)
+      } else if (!Array.isArray(endpoints.mirrors)) {
+        fail('endpoints', 'mirrors must be an array')
+      } else {
+        const badMirror = endpoints.mirrors.find((m: string) => !urlPattern.test(m))
+        if (badMirror) {
+          fail('endpoints', `Invalid mirror URL: ${badMirror}`)
+        } else {
+          const allUrls = [endpoints.primary, ...endpoints.mirrors]
+          if (new Set(allUrls).size !== allUrls.length) {
+            fail('endpoints', 'Duplicate URLs in primary/mirrors')
+          } else {
+            pass('endpoints', `primary: ${endpoints.primary}, ${endpoints.mirrors.length} mirror(s)`)
+          }
+        }
+      }
+    } else {
+      pass('endpoints', 'No endpoints configured')
     }
 
     const allPassed = steps.every(s => s.passed)
@@ -483,6 +550,7 @@ export class RegistryService implements OnModuleInit {
       adminAddresses:        doc.adminAddresses,
       backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
       threshold:             doc.threshold ?? 0,
+      endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkleRoot:            doc.merkleRoot,
       prevDocumentHash:      doc.prevDocumentHash,
@@ -529,6 +597,7 @@ export class RegistryService implements OnModuleInit {
       adminAddresses:        admins,
       backofficeServicePubkey: this.currentDoc?.backofficeServicePubkey ?? null,
       threshold:             this.currentDoc?.threshold ?? 0,
+      endpoints:             this.currentDoc?.endpoints ?? null,
       nodes:                 sorted,
       merkleRoot:            computeMerkleRoot(sorted),
       prevDocumentHash:      this.currentDoc?.documentHash ?? null,
