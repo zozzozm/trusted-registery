@@ -90,6 +90,8 @@
         <div class="value" id="cur-nodes"></div>
         <label style="margin-top:0.5rem;">Admin Addresses</label>
         <div class="value" id="cur-admins"></div>
+        <label style="margin-top:0.5rem;">Threshold</label>
+        <div class="value" id="cur-threshold"></div>
         <label style="margin-top:0.5rem;">Expires</label>
         <div class="value" id="cur-expires"></div>
       </div>
@@ -107,6 +109,8 @@
         <div class="value" id="mgmt-draft-version"></div>
         <label style="margin-top:0.5rem;">Nodes</label>
         <div class="value" id="mgmt-draft-nodes"></div>
+        <label style="margin-top:0.5rem;">Threshold</label>
+        <div class="value" id="mgmt-draft-threshold"></div>
         <label style="margin-top:0.5rem;">Document Hash</label>
         <div class="value mono" id="mgmt-draft-hash"></div>
         <label style="margin-top:0.5rem;">Signatures</label>
@@ -208,6 +212,8 @@
         <div class="value" id="draft-nodes-count"></div>
         <label style="margin-top:0.5rem;">Admins</label>
         <div class="value" id="draft-admins"></div>
+        <label style="margin-top:0.5rem;">Threshold</label>
+        <div class="value" id="draft-threshold"></div>
         <label style="margin-top:0.5rem;">Document Hash</label>
         <div class="value mono" id="draft-hash"></div>
         <label style="margin-top:0.5rem;">Merkle Root</label>
@@ -317,6 +323,7 @@
         const doc = await res.json()
         document.getElementById('cur-version').textContent = 'v' + doc.version
         document.getElementById('cur-nodes').textContent = doc.nodes.length + ' (' + doc.nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
+        document.getElementById('cur-threshold').textContent = doc.threshold ?? 0
         document.getElementById('cur-admins').innerHTML = doc.adminAddresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
@@ -372,6 +379,7 @@
       if (!draft) return
       document.getElementById('mgmt-draft-version').textContent = 'v' + draft.version
       document.getElementById('mgmt-draft-nodes').textContent = draft.nodes.length + ' node(s)'
+      document.getElementById('mgmt-draft-threshold').textContent = draft.threshold ?? 0
       document.getElementById('mgmt-draft-hash').textContent = draft.documentHash
       document.getElementById('mgmt-draft-sigs').textContent = draft.signatures.length + '/' + minSignatures
       document.getElementById('manage-draft-info').classList.remove('hidden')
@@ -470,6 +478,7 @@
         document.getElementById('draft-admins').innerHTML = draft.adminAddresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
+        document.getElementById('draft-threshold').textContent = draft.threshold ?? 0
         document.getElementById('draft-hash').textContent = draft.documentHash
         document.getElementById('draft-merkle').textContent = draft.merkleRoot
         document.getElementById('sign-draft-info').classList.remove('hidden')
