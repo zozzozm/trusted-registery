@@ -54,6 +54,13 @@ export class VerifyDocumentDto {
   @IsString({ each: true })
   adminAddresses: string[]
 
+  @IsOptional()
+  @IsString()
+  backofficeServicePubkey: string | null
+
+  @IsNumber()
+  threshold: number
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => NodeRecordDto)

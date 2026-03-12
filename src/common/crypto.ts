@@ -85,15 +85,17 @@ export const EIP712_TYPES = {
     { name: 'revokedAt',   type: 'uint256' },
   ],
   RegistryDocument: [
-    { name: 'registryId',       type: 'string' },
-    { name: 'version',          type: 'uint256' },
-    { name: 'issuedAt',         type: 'uint256' },
-    { name: 'expiresAt',        type: 'uint256' },
-    { name: 'adminAddresses',   type: 'address[]' },
-    { name: 'nodes',            type: 'NodeRecord[]' },
-    { name: 'merkleRoot',       type: 'string' },
-    { name: 'prevDocumentHash', type: 'string' },
-    { name: 'documentHash',     type: 'string' },
+    { name: 'registryId',            type: 'string' },
+    { name: 'version',               type: 'uint256' },
+    { name: 'issuedAt',              type: 'uint256' },
+    { name: 'expiresAt',             type: 'uint256' },
+    { name: 'adminAddresses',        type: 'address[]' },
+    { name: 'backofficeServicePubkey', type: 'string' },
+    { name: 'threshold',             type: 'uint256' },
+    { name: 'nodes',                 type: 'NodeRecord[]' },
+    { name: 'merkleRoot',            type: 'string' },
+    { name: 'prevDocumentHash',      type: 'string' },
+    { name: 'documentHash',          type: 'string' },
   ],
 }
 
@@ -103,6 +105,8 @@ type DocForSigning = {
   issuedAt: number
   expiresAt: number
   adminAddresses: string[]
+  backofficeServicePubkey: string | null
+  threshold: number
   nodes: NodeRecord[]
   merkleRoot: string
   prevDocumentHash: string | null
@@ -115,12 +119,14 @@ type DocForSigning = {
  */
 export function buildTypedDataValue(doc: DocForSigning) {
   return {
-    registryId:       doc.registryId,
-    version:          doc.version,
-    issuedAt:         doc.issuedAt,
-    expiresAt:        doc.expiresAt,
-    adminAddresses:   doc.adminAddresses,
-    nodes:            doc.nodes.map(n => ({
+    registryId:            doc.registryId,
+    version:               doc.version,
+    issuedAt:              doc.issuedAt,
+    expiresAt:             doc.expiresAt,
+    adminAddresses:        doc.adminAddresses,
+    backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
+    threshold:             doc.threshold,
+    nodes:                 doc.nodes.map(n => ({
       nodeId:      n.nodeId,
       ikPub:       n.ikPub,
       ekPub:       n.ekPub,
@@ -191,6 +197,8 @@ export function verifyMultiSig(
     issuedAt: number
     expiresAt: number
     adminAddresses: string[]
+    backofficeServicePubkey: string | null
+    threshold: number
     nodes: NodeRecord[]
     merkleRoot: string
     prevDocumentHash: string | null
