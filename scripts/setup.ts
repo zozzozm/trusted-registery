@@ -30,28 +30,28 @@ async function main() {
   const now: number = Math.floor(Date.now() / 1000)
 
   const unsigned: UnsignedDocument = {
-    registryId:            CONFIG.REGISTRY_ID,
+    registry_id:            CONFIG.REGISTRY_ID,
     version:               1,
-    issuedAt:              now,
-    expiresAt:             now + CONFIG.EXPIRY_SECONDS,
-    adminAddresses:        adminAddresses,
-    backofficeServicePubkey: null,
-    allowedCurves:         ['secp256k1', 'ed25519'],
-    allowedProtocols:      ['cggmp21', 'frost'],
-    threshold:             2,
+    issued_at:              now,
+    expires_at:             now + CONFIG.EXPIRY_SECONDS,
+    admin_addresses:        adminAddresses,
+    backoffice_service_pubkey: null,
+    allowed_curves:         ['secp256k1', 'ed25519'],
+    allowed_protocols:      ['cggmp21', 'frost'],
+    admin_quorum:             2,
     endpoints:             null,
     nodes:                 [],
-    merkleRoot:            computeMerkleRoot([]),
-    prevDocumentHash:      null,
-    documentHash:          '',
+    merkle_root:            computeMerkleRoot([]),
+    prev_document_hash:      null,
+    document_hash:          '',
   }
-  unsigned.documentHash = computeDocumentHash(unsigned)
+  unsigned.document_hash = computeDocumentHash(unsigned)
 
   console.log('Unsigned document:')
-  console.log(`  registryId:   ${unsigned.registryId}`)
-  console.log(`  version:      ${unsigned.version}`)
-  console.log(`  admins:       ${adminAddresses.length}`)
-  console.log(`  documentHash: ${unsigned.documentHash}`)
+  console.log(`  registry_id:    ${unsigned.registry_id}`)
+  console.log(`  version:        ${unsigned.version}`)
+  console.log(`  admins:         ${adminAddresses.length}`)
+  console.log(`  document_hash:  ${unsigned.document_hash}`)
   console.log()
 
   const wallet0 = new ethers.Wallet(CONFIG.DEV_ADMIN_PRIVKEY_0)
@@ -68,8 +68,8 @@ async function main() {
   const signed: RegistryDocument = {
     ...unsigned,
     signatures: [
-      { adminAddress: wallet0.address, signature: sig0 },
-      { adminAddress: wallet1.address, signature: sig1 },
+      { admin_address: wallet0.address, signature: sig0 },
+      { admin_address: wallet1.address, signature: sig1 },
     ]
   }
 

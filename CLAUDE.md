@@ -43,20 +43,20 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 
 ### Registry Document Fields
 
-- **Core**: `registryId`, `version`, `issuedAt`, `expiresAt`
-- **Admin**: `adminAddresses` (Ethereum addresses, 2-of-3 multi-sig)
-- **Nodes**: `nodes[]` (NodeRecord with ikPub, ekPub, role, status)
-- **Backoffice**: `backofficeServicePubkey` (32-byte hex public key, nullable)
-- **MPC Policy**: `allowedCurves` (e.g. secp256k1, ed25519), `allowedProtocols` (e.g. cggmp21, frost), `threshold` (minimum signers required, >= 2)
+- **Core**: `registry_id`, `version`, `issued_at`, `expires_at`
+- **Admin**: `admin_addresses` (Ethereum addresses, 2-of-3 multi-sig)
+- **Nodes**: `nodes[]` (NodeRecord with `ik_pub`, `ek_pub`, `role`, `status`)
+- **Backoffice**: `backoffice_service_pubkey` (32-byte hex public key, nullable)
+- **MPC Policy**: `allowed_curves` (e.g. secp256k1, ed25519), `allowed_protocols` (e.g. cggmp21, frost), `admin_quorum` (minimum signers required, >= 2)
 - **Endpoints**: `endpoints` (nullable object with `primary` URL, `mirrors[]` URLs, `updated_at` timestamp)
-- **Integrity**: `merkleRoot`, `prevDocumentHash`, `documentHash`
+- **Integrity**: `merkle_root`, `prev_document_hash`, `document_hash`
 - **Auth**: `signatures[]` (EIP-712 typed data signatures)
 
 ### Cryptographic Design
 
-- **Document hash**: SHA-256 of deterministic JSON (keys sorted recursively), computed with `documentHash` field set to empty string
-- **Merkle root**: binary Merkle tree over `hash("leaf:" + hash(nodeRecord))` for each node, sorted by `nodeId`
-- **Hash chain**: each document's `prevDocumentHash` links to the previous version's `documentHash`
+- **Document hash**: SHA-256 of deterministic JSON (keys sorted recursively), computed with `document_hash` field set to empty string
+- **Merkle root**: binary Merkle tree over `hash("leaf:" + hash(nodeRecord))` for each node, sorted by `node_id`
+- **Hash chain**: each document's `prev_document_hash` links to the previous version's `document_hash`
 - **Signatures**: EIP-712 typed data signatures over the full document; `verifyMultiSig` checks for ≥ `MIN_SIGNATURES` valid unique admin signatures
 
 ### Verification Pipeline (10 steps)
@@ -69,7 +69,7 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 6. Hash chain — links to previous version
 7. Multi-sig — 2-of-3 EIP-712 admin signatures
 8. Admin addresses — minimum count validation
-9. MPC Policy — allowedCurves/allowedProtocols non-empty, threshold >= 2
+9. MPC Policy — allowed_curves/allowed_protocols non-empty, admin_quorum >= 2
 10. Endpoints — URL format validation, no duplicates
 
 ### Testing

@@ -32,12 +32,12 @@ export class RegistryService implements OnModuleInit {
 
   /**
    * Returns the current admin addresses.
-   * If a document is published, uses its adminAddresses.
+   * If a document is published, uses its admin_addresses.
    * Otherwise falls back to genesis env vars.
    */
   getActiveAdminAddresses(): string[] {
-    if (this.currentDoc?.adminAddresses?.length) {
-      return this.currentDoc.adminAddresses
+    if (this.currentDoc?.admin_addresses?.length) {
+      return this.currentDoc.admin_addresses
     }
     return CONFIG.GENESIS_ADMIN_ADDRESSES
   }
@@ -76,24 +76,24 @@ export class RegistryService implements OnModuleInit {
   }
 
   /** POST /registry/pending/sign — add one admin signature to the staged draft */
-  signPendingDocument(body: { adminAddress: string; signature: string; documentHash?: string }): RegistryDocument {
+  signPendingDocument(body: { admin_address: string; signature: string; document_hash?: string }): RegistryDocument {
     if (!this.stagedDraft) throw new NotFoundException('No pending document. Call GET /registry/pending first.')
 
-    const { adminAddress, signature, documentHash } = body
+    const { admin_address, signature, document_hash } = body
 
-    // If caller provided documentHash, verify it matches the current draft
-    if (documentHash && documentHash !== this.stagedDraft.documentHash) {
-      throw new ConflictException('documentHash does not match the current draft. The draft may have been modified.')
+    // If caller provided document_hash, verify it matches the current draft
+    if (document_hash && document_hash !== this.stagedDraft.document_hash) {
+      throw new ConflictException('document_hash does not match the current draft. The draft may have been modified.')
     }
 
     // Signatures must come from the CURRENT admins (not the draft's proposed admins)
-    const adminAddresses = this.getActiveAdminAddresses()
-    const isKnownAdmin = adminAddresses.some(a => a.toLowerCase() === adminAddress.toLowerCase())
-    if (!isKnownAdmin) throw new BadRequestException(`Unknown admin address: ${adminAddress}`)
+    const activeAdmins = this.getActiveAdminAddresses()
+    const isKnownAdmin = activeAdmins.some(a => a.toLowerCase() === admin_address.toLowerCase())
+    if (!isKnownAdmin) throw new BadRequestException(`Unknown admin address: ${admin_address}`)
 
     // Check for duplicate
-    if (this.stagedDraft.signatures.some(s => s.adminAddress.toLowerCase() === adminAddress.toLowerCase())) {
-      throw new ConflictException(`Admin ${adminAddress} has already signed this draft`)
+    if (this.stagedDraft.signatures.some(s => s.admin_address.toLowerCase() === admin_address.toLowerCase())) {
+      throw new ConflictException(`Admin ${admin_address} has already signed this draft`)
     }
 
     // Validate signature format (0x + 130 hex chars)
@@ -103,10 +103,10 @@ export class RegistryService implements OnModuleInit {
 
     // Verify signature against full document using ecrecover
     const { signatures: _sigs, ...unsignedDraft } = this.stagedDraft
-    const ok = verifySingleSig(unsignedDraft, signature, adminAddress)
+    const ok = verifySingleSig(unsignedDraft, signature, admin_address)
     if (!ok) throw new BadRequestException('Signature verification failed')
 
-    this.stagedDraft.signatures.push({ adminAddress, signature })
+    this.stagedDraft.signatures.push({ admin_address, signature })
 
     // Lock draft after first signature to prevent TOCTOU
     this.draftLocked = true
@@ -115,13 +115,13 @@ export class RegistryService implements OnModuleInit {
   }
 
   /** POST /registry/admins/propose — propose new admin addresses for the next version */
-  proposeAdminChange(body: { adminAddresses: string[] }): RegistryDocument {
+  proposeAdminChange(body: { admin_addresses: string[] }): RegistryDocument {
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
 
     // Validate addresses
-    const addresses = body.adminAddresses.map(a => {
+    const addresses = body.admin_addresses.map(a => {
       try { return ethers.getAddress(a) }
       catch { throw new BadRequestException(`Invalid Ethereum address: ${a}`) }
     })
@@ -144,7 +144,7 @@ export class RegistryService implements OnModuleInit {
     }
 
     // Update admin addresses and refresh hash
-    this.stagedDraft.adminAddresses = addresses
+    this.stagedDraft.admin_addresses = addresses
     this._refreshDraftHash()
 
     this.audit('ADMIN_CHANGE_PROPOSED', { newAdmins: addresses })
@@ -152,14 +152,14 @@ export class RegistryService implements OnModuleInit {
   }
 
   /** POST /registry/backoffice-pubkey/propose — propose a new backoffice service public key */
-  proposeBackofficePubkey(body: { backofficeServicePubkey: string }): RegistryDocument {
+  proposeBackofficePubkey(body: { backoffice_service_pubkey: string }): RegistryDocument {
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
 
-    const pubkey = body.backofficeServicePubkey
+    const pubkey = body.backoffice_service_pubkey
     if (!/^[0-9a-f]{64}$/i.test(pubkey)) {
-      throw new BadRequestException('backofficeServicePubkey must be 32 bytes (64 hex chars)')
+      throw new BadRequestException('backoffice_service_pubkey must be 32 bytes (64 hex chars)')
     }
 
     // Auto-create draft if none exists
@@ -169,28 +169,28 @@ export class RegistryService implements OnModuleInit {
       this.stagedDraft = { ...base, signatures: [] }
     }
 
-    this.stagedDraft.backofficeServicePubkey = pubkey
+    this.stagedDraft.backoffice_service_pubkey = pubkey
     this._refreshDraftHash()
 
-    this.audit('BACKOFFICE_PUBKEY_PROPOSED', { backofficeServicePubkey: pubkey })
+    this.audit('BACKOFFICE_PUBKEY_PROPOSED', { backoffice_service_pubkey: pubkey })
     return this.stagedDraft
   }
 
-  /** POST /registry/mpc-policy/propose — propose MPC policy (curves, protocols, threshold) */
-  proposeMpcPolicy(body: { allowedCurves: string[]; allowedProtocols: string[]; threshold: number }): RegistryDocument {
+  /** POST /registry/mpc-policy/propose — propose MPC policy (curves, protocols, admin_quorum) */
+  proposeMpcPolicy(body: { allowed_curves: string[]; allowed_protocols: string[]; admin_quorum: number }): RegistryDocument {
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
 
-    const { allowedCurves, allowedProtocols, threshold } = body
-    if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
-      throw new BadRequestException('allowedCurves must be a non-empty array')
+    const { allowed_curves, allowed_protocols, admin_quorum } = body
+    if (!Array.isArray(allowed_curves) || allowed_curves.length === 0) {
+      throw new BadRequestException('allowed_curves must be a non-empty array')
     }
-    if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
-      throw new BadRequestException('allowedProtocols must be a non-empty array')
+    if (!Array.isArray(allowed_protocols) || allowed_protocols.length === 0) {
+      throw new BadRequestException('allowed_protocols must be a non-empty array')
     }
-    if (!Number.isInteger(threshold) || threshold < 2) {
-      throw new BadRequestException('threshold must be an integer >= 2')
+    if (!Number.isInteger(admin_quorum) || admin_quorum < 2) {
+      throw new BadRequestException('admin_quorum must be an integer >= 2')
     }
 
     // Auto-create draft if none exists
@@ -200,12 +200,12 @@ export class RegistryService implements OnModuleInit {
       this.stagedDraft = { ...base, signatures: [] }
     }
 
-    this.stagedDraft.allowedCurves = allowedCurves
-    this.stagedDraft.allowedProtocols = allowedProtocols
-    this.stagedDraft.threshold = threshold
+    this.stagedDraft.allowed_curves = allowed_curves
+    this.stagedDraft.allowed_protocols = allowed_protocols
+    this.stagedDraft.admin_quorum = admin_quorum
     this._refreshDraftHash()
 
-    this.audit('MPC_POLICY_PROPOSED', { allowedCurves, allowedProtocols, threshold })
+    this.audit('MPC_POLICY_PROPOSED', { allowed_curves, allowed_protocols, admin_quorum })
     return this.stagedDraft
   }
 
@@ -252,7 +252,7 @@ export class RegistryService implements OnModuleInit {
 
   /** GET /registry/node/:nodeId */
   getNode(nodeId: string): NodeRecord {
-    const node = this.currentDoc?.nodes.find(n => n.nodeId === nodeId)
+    const node = this.currentDoc?.nodes.find(n => n.node_id === nodeId)
     if (!node) throw new NotFoundException(`Node ${nodeId} not found`)
     return node
   }
@@ -272,17 +272,17 @@ export class RegistryService implements OnModuleInit {
     const admins = this.getActiveAdminAddresses()
     return {
       status:      'ok',
-      registryId:  CONFIG.REGISTRY_ID,
+      registry_id:  CONFIG.REGISTRY_ID,
       version:     doc?.version ?? 0,
       totalNodes:  doc?.nodes.length ?? 0,
       activeNodes: doc?.nodes.filter(n => n.status === 'ACTIVE').length ?? 0,
-      expiresAt:   doc?.expiresAt ?? null,
-      expired:     doc ? Math.floor(Date.now() / 1000) > doc.expiresAt : null,
-      adminAddresses: admins.map((a, i) => ({
+      expires_at:   doc?.expires_at ?? null,
+      expired:     doc ? Math.floor(Date.now() / 1000) > doc.expires_at : null,
+      admin_addresses: admins.map((a, i) => ({
         index:   i,
         address: a,
       })),
-      adminSource: doc?.adminAddresses?.length ? 'document' : 'genesis-env',
+      adminSource: doc?.admin_addresses?.length ? 'document' : 'genesis-env',
     }
   }
 
@@ -302,7 +302,7 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash','allowedCurves','allowedProtocols','threshold']
+    const requiredFields = ['registry_id','version','issued_at','expires_at','admin_addresses','nodes','merkle_root','prev_document_hash','document_hash','allowed_curves','allowed_protocols','admin_quorum']
     const missing  = requiredFields.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
@@ -311,61 +311,61 @@ export class RegistryService implements OnModuleInit {
     pass('structure', 'All required fields present')
 
     // Step 2 — Registry ID
-    if (doc.registryId !== CONFIG.REGISTRY_ID) {
-      fail('registryId', `Got "${doc.registryId}", expected "${CONFIG.REGISTRY_ID}"`)
+    if (doc.registry_id !== CONFIG.REGISTRY_ID) {
+      fail('registry_id', `Got "${doc.registry_id}", expected "${CONFIG.REGISTRY_ID}"`)
     } else {
-      pass('registryId', `Registry ID matches: "${doc.registryId}"`)
+      pass('registry_id', `Registry ID matches: "${doc.registry_id}"`)
     }
 
     // Step 3 — Expiry
     const now = Math.floor(Date.now() / 1000)
-    if (now > doc.expiresAt) {
-      fail('expiry', `Document expired at ${new Date(doc.expiresAt * 1000).toISOString()}`)
+    if (now > doc.expires_at) {
+      fail('expiry', `Document expired at ${new Date(doc.expires_at * 1000).toISOString()}`)
     } else {
-      const secsLeft = doc.expiresAt - now
+      const secsLeft = doc.expires_at - now
       pass('expiry', `Valid for ${Math.floor(secsLeft / 3600)}h ${Math.floor((secsLeft % 3600) / 60)}m more`)
     }
 
     // Step 4 — Document hash integrity (whitelist known fields only)
     const unsignedClean: UnsignedDocument = {
-      registryId:            doc.registryId,
+      registry_id:            doc.registry_id,
       version:               doc.version,
-      issuedAt:              doc.issuedAt,
-      expiresAt:             doc.expiresAt,
-      adminAddresses:        doc.adminAddresses,
-      backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
-      allowedCurves:         doc.allowedCurves ?? [],
-      allowedProtocols:      doc.allowedProtocols ?? [],
-      threshold:             doc.threshold ?? 2,
+      issued_at:              doc.issued_at,
+      expires_at:             doc.expires_at,
+      admin_addresses:        doc.admin_addresses,
+      backoffice_service_pubkey: doc.backoffice_service_pubkey ?? null,
+      allowed_curves:         doc.allowed_curves ?? [],
+      allowed_protocols:      doc.allowed_protocols ?? [],
+      admin_quorum:             doc.admin_quorum ?? 2,
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
-      merkleRoot:            doc.merkleRoot,
-      prevDocumentHash:      doc.prevDocumentHash,
-      documentHash:          '',
+      merkle_root:            doc.merkle_root,
+      prev_document_hash:      doc.prev_document_hash,
+      document_hash:          '',
     }
     const expectedHash = computeDocumentHash(unsignedClean)
-    if (expectedHash !== doc.documentHash) {
-      fail('documentHash', `Recomputed: ${expectedHash.substring(0,16)}...\nDocument has: ${doc.documentHash.substring(0,16)}...`)
+    if (expectedHash !== doc.document_hash) {
+      fail('document_hash', `Recomputed: ${expectedHash.substring(0,16)}...\nDocument has: ${doc.document_hash.substring(0,16)}...`)
     } else {
-      pass('documentHash', `Hash verified: ${doc.documentHash.substring(0,16)}...`)
+      pass('document_hash', `Hash verified: ${doc.document_hash.substring(0,16)}...`)
     }
 
     // Step 5 — Merkle root
     const nodes = Array.isArray(doc.nodes) ? doc.nodes : []
-    const sorted = [...nodes].sort((a: any, b: any) => a.nodeId.localeCompare(b.nodeId))
+    const sorted = [...nodes].sort((a: any, b: any) => a.node_id.localeCompare(b.node_id))
     const expectedRoot = computeMerkleRoot(sorted)
-    if (expectedRoot !== doc.merkleRoot) {
-      fail('merkleRoot', `Recomputed: ${expectedRoot.substring(0,16)}...\nDocument has: ${doc.merkleRoot.substring(0,16)}...`)
+    if (expectedRoot !== doc.merkle_root) {
+      fail('merkle_root', `Recomputed: ${expectedRoot.substring(0,16)}...\nDocument has: ${doc.merkle_root.substring(0,16)}...`)
     } else {
-      pass('merkleRoot', `Merkle root verified: ${doc.merkleRoot.substring(0,16)}...`)
+      pass('merkle_root', `Merkle root verified: ${doc.merkle_root.substring(0,16)}...`)
     }
 
     // Step 6 — Hash chain
     if (this.currentDoc) {
       if (doc.version <= this.currentDoc.version) {
         fail('hashChain', `Version ${doc.version} <= current ${this.currentDoc.version} — rollback`)
-      } else if (doc.prevDocumentHash !== this.currentDoc.documentHash) {
-        fail('hashChain', `prevDocumentHash does not match current document hash`)
+      } else if (doc.prev_document_hash !== this.currentDoc.document_hash) {
+        fail('hashChain', `prev_document_hash does not match current document hash`)
       } else {
         pass('hashChain', `Chain intact: v${this.currentDoc.version} -> v${doc.version}`)
       }
@@ -376,7 +376,7 @@ export class RegistryService implements OnModuleInit {
     // Step 7 — Multi-signature verification
     // Signatures must be from the CURRENT admins (who authorize the new version)
     const signingAdmins = this.getActiveAdminAddresses()
-    const docForSig = { ...unsignedClean, documentHash: doc.documentHash }
+    const docForSig = { ...unsignedClean, document_hash: doc.document_hash }
     const sigResult = verifyMultiSig(
       docForSig,
       doc.signatures,
@@ -386,37 +386,37 @@ export class RegistryService implements OnModuleInit {
     if (!sigResult.valid) {
       fail('signatures', sigResult.reason!)
     } else {
-      const signers = (doc.signatures as AdminSignature[]).map(s => s.adminAddress.substring(0, 10) + '...').join(', ')
+      const signers = (doc.signatures as AdminSignature[]).map(s => s.admin_address.substring(0, 10) + '...').join(', ')
       pass('signatures', `${doc.signatures.length} valid signatures from: ${signers}`)
     }
 
     // Step 8 — Admin addresses validation
-    if (!Array.isArray(doc.adminAddresses) || doc.adminAddresses.length < CONFIG.MIN_SIGNATURES) {
-      fail('adminAddresses', `Need at least ${CONFIG.MIN_SIGNATURES} admin addresses, got ${doc.adminAddresses?.length ?? 0}`)
+    if (!Array.isArray(doc.admin_addresses) || doc.admin_addresses.length < CONFIG.MIN_SIGNATURES) {
+      fail('admin_addresses', `Need at least ${CONFIG.MIN_SIGNATURES} admin addresses, got ${doc.admin_addresses?.length ?? 0}`)
     } else {
       const adminChanged = this.currentDoc
-        ? JSON.stringify(doc.adminAddresses.map((a: string) => a.toLowerCase()).sort())
-          !== JSON.stringify(this.currentDoc.adminAddresses.map((a: string) => a.toLowerCase()).sort())
+        ? JSON.stringify(doc.admin_addresses.map((a: string) => a.toLowerCase()).sort())
+          !== JSON.stringify(this.currentDoc.admin_addresses.map((a: string) => a.toLowerCase()).sort())
         : false
       if (adminChanged) {
-        pass('adminAddresses', `Admin rotation: ${doc.adminAddresses.length} new admins proposed`)
+        pass('admin_addresses', `Admin rotation: ${doc.admin_addresses.length} new admins proposed`)
       } else {
-        pass('adminAddresses', `${doc.adminAddresses.length} admin addresses (unchanged)`)
+        pass('admin_addresses', `${doc.admin_addresses.length} admin addresses (unchanged)`)
       }
     }
 
-    // Step 9 — MPC policy validation (curves, protocols, threshold)
-    const allowedCurves = doc.allowedCurves ?? []
-    const allowedProtocols = doc.allowedProtocols ?? []
-    const threshold = doc.threshold ?? 2
+    // Step 9 — MPC policy validation (curves, protocols, admin_quorum)
+    const allowedCurves = doc.allowed_curves ?? []
+    const allowedProtocols = doc.allowed_protocols ?? []
+    const adminQuorum = doc.admin_quorum ?? 2
     if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
-      fail('mpcPolicy', 'allowedCurves must be a non-empty array')
+      fail('mpcPolicy', 'allowed_curves must be a non-empty array')
     } else if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
-      fail('mpcPolicy', 'allowedProtocols must be a non-empty array')
-    } else if (!Number.isInteger(threshold) || threshold < 2) {
-      fail('mpcPolicy', 'threshold must be an integer >= 2')
+      fail('mpcPolicy', 'allowed_protocols must be a non-empty array')
+    } else if (!Number.isInteger(adminQuorum) || adminQuorum < 2) {
+      fail('mpcPolicy', 'admin_quorum must be an integer >= 2')
     } else {
-      pass('mpcPolicy', `Curves: [${allowedCurves.join(', ')}], Protocols: [${allowedProtocols.join(', ')}], Threshold: ${threshold}`)
+      pass('mpcPolicy', `Curves: [${allowedCurves.join(', ')}], Protocols: [${allowedProtocols.join(', ')}], Quorum: ${adminQuorum}`)
     }
 
     // Step 11 — Endpoints validation
@@ -453,28 +453,28 @@ export class RegistryService implements OnModuleInit {
   // ══════════════════════════════════════════════════════════════════════════
 
   proposeEnroll(body: {
-    ikPub: string
-    ekPub: string
+    ik_pub: string
+    ek_pub: string
     role: NodeRole
-  }): { nodeId: string; draft: RegistryDocument } {
+  }): { node_id: string; draft: RegistryDocument } {
     // Reject if draft is locked (has signatures)
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
 
     const now    = Math.floor(Date.now() / 1000)
-    const nodeId = deriveNodeId(body.ikPub, body.role, now)
+    const nodeId = deriveNodeId(body.ik_pub, body.role, now)
 
     // Validate
-    if (!/^[0-9a-f]{64}$/i.test(body.ikPub)) throw new BadRequestException('ikPub must be 32 bytes (64 hex chars)')
-    if (!/^[0-9a-f]{64}$/i.test(body.ekPub)) throw new BadRequestException('ekPub must be 32 bytes (64 hex chars)')
+    if (!/^[0-9a-f]{64}$/i.test(body.ik_pub)) throw new BadRequestException('ik_pub must be 32 bytes (64 hex chars)')
+    if (!/^[0-9a-f]{64}$/i.test(body.ek_pub)) throw new BadRequestException('ek_pub must be 32 bytes (64 hex chars)')
     if (!['USER_COSIGNER','PROVIDER_COSIGNER','RECOVERY_GUARDIAN'].includes(body.role)) {
       throw new BadRequestException('Invalid role')
     }
     // Check not already enrolled (active OR revoked — block re-enrollment of revoked keys)
     const draftNodes = this.stagedDraft?.nodes ?? this.currentDoc?.nodes ?? []
-    if (draftNodes.some(n => n.ikPub === body.ikPub)) {
-      throw new ConflictException('A node with this ikPub already exists')
+    if (draftNodes.some(n => n.ik_pub === body.ik_pub)) {
+      throw new ConflictException('A node with this ik_pub already exists')
     }
 
     // Auto-create draft if none exists
@@ -484,21 +484,21 @@ export class RegistryService implements OnModuleInit {
       this.stagedDraft = { ...base, signatures: [] }
     }
 
-    // Check nodeId collision
-    if (this.stagedDraft.nodes.some(n => n.nodeId === nodeId)) {
-      throw new ConflictException('nodeId collision — try again')
+    // Check node_id collision
+    if (this.stagedDraft.nodes.some(n => n.node_id === nodeId)) {
+      throw new ConflictException('node_id collision — try again')
     }
 
     // Add the node
-    const newNode: NodeRecord = { ...body, nodeId, status: 'ACTIVE', enrolledAt: now }
+    const newNode: NodeRecord = { ...body, node_id: nodeId, status: 'ACTIVE', enrolled_at: now }
     this.stagedDraft.nodes.push(newNode)
     this._refreshDraftHash()
 
-    this.audit('ENROLL_PROPOSED', { nodeId, role: body.role })
-    return { nodeId, draft: this.stagedDraft }
+    this.audit('ENROLL_PROPOSED', { node_id: nodeId, role: body.role })
+    return { node_id: nodeId, draft: this.stagedDraft }
   }
 
-  proposeRevoke(body: { nodeId: string; reason: string }): RegistryDocument {
+  proposeRevoke(body: { node_id: string; reason: string }): RegistryDocument {
     // Reject if draft is locked (has signatures)
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
@@ -506,24 +506,24 @@ export class RegistryService implements OnModuleInit {
 
     // Auto-create draft if none exists
     if (!this.stagedDraft) {
-      if (!this.currentDoc) throw new NotFoundException(`Node ${body.nodeId} not found`)
+      if (!this.currentDoc) throw new NotFoundException(`Node ${body.node_id} not found`)
       const nodes = [...this.currentDoc.nodes]
       const base = this._buildDraft(nodes)
       this.stagedDraft = { ...base, signatures: [] }
     }
 
     // Find node in the draft
-    const node = this.stagedDraft.nodes.find(n => n.nodeId === body.nodeId)
-    if (!node) throw new NotFoundException(`Node ${body.nodeId} not found`)
+    const node = this.stagedDraft.nodes.find(n => n.node_id === body.node_id)
+    if (!node) throw new NotFoundException(`Node ${body.node_id} not found`)
     if (node.status === 'REVOKED') throw new ConflictException('Node is already revoked')
 
     // Revoke and refresh hash
     const now = Math.floor(Date.now() / 1000)
     node.status = 'REVOKED'
-    node.revokedAt = now
+    node.revoked_at = now
     this._refreshDraftHash()
 
-    this.audit('REVOKE_PROPOSED', { nodeId: body.nodeId, reason: body.reason })
+    this.audit('REVOKE_PROPOSED', { node_id: body.node_id, reason: body.reason })
     return this.stagedDraft
   }
 
@@ -543,20 +543,20 @@ export class RegistryService implements OnModuleInit {
 
     // Construct clean document from known fields only
     const clean: RegistryDocument = {
-      registryId:            doc.registryId,
+      registry_id:            doc.registry_id,
       version:               doc.version,
-      issuedAt:              doc.issuedAt,
-      expiresAt:             doc.expiresAt,
-      adminAddresses:        doc.adminAddresses,
-      backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
-      allowedCurves:         doc.allowedCurves ?? [],
-      allowedProtocols:      doc.allowedProtocols ?? [],
-      threshold:             doc.threshold ?? 2,
+      issued_at:              doc.issued_at,
+      expires_at:             doc.expires_at,
+      admin_addresses:        doc.admin_addresses,
+      backoffice_service_pubkey: doc.backoffice_service_pubkey ?? null,
+      allowed_curves:         doc.allowed_curves ?? [],
+      allowed_protocols:      doc.allowed_protocols ?? [],
+      admin_quorum:             doc.admin_quorum ?? 2,
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
-      merkleRoot:            doc.merkleRoot,
-      prevDocumentHash:      doc.prevDocumentHash,
-      documentHash:          doc.documentHash,
+      merkle_root:            doc.merkle_root,
+      prev_document_hash:      doc.prev_document_hash,
+      document_hash:          doc.document_hash,
       signatures:            doc.signatures,
     }
 
@@ -565,7 +565,7 @@ export class RegistryService implements OnModuleInit {
     this.stagedDraft = null
     this.draftLocked = false
     this.saveToDisk()
-    this.audit('DOCUMENT_PUBLISHED', { version: doc.version, nodes: doc.nodes.length, admins: doc.adminAddresses.length })
+    this.audit('DOCUMENT_PUBLISHED', { version: doc.version, nodes: doc.nodes.length, admins: doc.admin_addresses.length })
 
     return { published: true, version: doc.version }
   }
@@ -574,40 +574,40 @@ export class RegistryService implements OnModuleInit {
   // INTERNAL HELPERS
   // ══════════════════════════════════════════════════════════════════════════
 
-  /** Re-sort nodes, recompute merkleRoot + documentHash, clear signatures */
+  /** Re-sort nodes, recompute merkle_root + document_hash, clear signatures */
   private _refreshDraftHash() {
     if (!this.stagedDraft) return
-    this.stagedDraft.nodes.sort((a, b) => a.nodeId.localeCompare(b.nodeId))
-    this.stagedDraft.merkleRoot = computeMerkleRoot(this.stagedDraft.nodes)
-    this.stagedDraft.documentHash = ''
+    this.stagedDraft.nodes.sort((a, b) => a.node_id.localeCompare(b.node_id))
+    this.stagedDraft.merkle_root = computeMerkleRoot(this.stagedDraft.nodes)
+    this.stagedDraft.document_hash = ''
     const { signatures: _, ...unsigned } = this.stagedDraft
-    this.stagedDraft.documentHash = computeDocumentHash(unsigned as UnsignedDocument)
+    this.stagedDraft.document_hash = computeDocumentHash(unsigned as UnsignedDocument)
     this.stagedDraft.signatures = []
   }
 
   private _buildDraft(nodes: NodeRecord[]): UnsignedDocument {
-    const sorted  = [...nodes].sort((a, b) => a.nodeId.localeCompare(b.nodeId))
+    const sorted  = [...nodes].sort((a, b) => a.node_id.localeCompare(b.node_id))
     const now     = Math.floor(Date.now() / 1000)
     const nextV   = (this.currentDoc?.version ?? 0) + 1
     // Carry forward current admin addresses, or use genesis
     const admins  = this.getActiveAdminAddresses()
     const draft: UnsignedDocument = {
-      registryId:            CONFIG.REGISTRY_ID,
+      registry_id:            CONFIG.REGISTRY_ID,
       version:               nextV,
-      issuedAt:              now,
-      expiresAt:             now + CONFIG.EXPIRY_SECONDS,
-      adminAddresses:        admins,
-      backofficeServicePubkey: this.currentDoc?.backofficeServicePubkey ?? null,
-      allowedCurves:         this.currentDoc?.allowedCurves ?? ['secp256k1', 'ed25519'],
-      allowedProtocols:      this.currentDoc?.allowedProtocols ?? ['cggmp21', 'frost'],
-      threshold:             this.currentDoc?.threshold ?? 2,
+      issued_at:              now,
+      expires_at:             now + CONFIG.EXPIRY_SECONDS,
+      admin_addresses:        admins,
+      backoffice_service_pubkey: this.currentDoc?.backoffice_service_pubkey ?? null,
+      allowed_curves:         this.currentDoc?.allowed_curves ?? ['secp256k1', 'ed25519'],
+      allowed_protocols:      this.currentDoc?.allowed_protocols ?? ['cggmp21', 'frost'],
+      admin_quorum:             this.currentDoc?.admin_quorum ?? 2,
       endpoints:             this.currentDoc?.endpoints ?? null,
       nodes:                 sorted,
-      merkleRoot:            computeMerkleRoot(sorted),
-      prevDocumentHash:      this.currentDoc?.documentHash ?? null,
-      documentHash:          '',
+      merkle_root:            computeMerkleRoot(sorted),
+      prev_document_hash:      this.currentDoc?.document_hash ?? null,
+      document_hash:          '',
     }
-    draft.documentHash = computeDocumentHash(draft)
+    draft.document_hash = computeDocumentHash(draft)
     return draft
   }
 

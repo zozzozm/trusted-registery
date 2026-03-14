@@ -29,7 +29,7 @@ export function hashString(s: string): string {
 }
 
 /**
- * Build the documentHash field — hashes everything except signatures
+ * Build the document_hash field — hashes everything except signatures
  */
 export function computeDocumentHash(doc: UnsignedDocument): string {
   return hashObject(doc)
@@ -37,12 +37,12 @@ export function computeDocumentHash(doc: UnsignedDocument): string {
 
 // ── Merkle tree ───────────────────────────────────────────────────────────────
 
-export function computeMerkleRoot(nodes: { nodeId: string }[]): string {
+export function computeMerkleRoot(nodes: { node_id: string }[]): string {
   if (nodes.length === 0) return hashString('empty')
 
-  // Sort by nodeId for determinism
+  // Sort by node_id for determinism
   const leaves = [...nodes]
-    .sort((a, b) => a.nodeId.localeCompare(b.nodeId))
+    .sort((a, b) => a.node_id.localeCompare(b.node_id))
     .map(n => hashString('leaf:' + hashObject(n)))
 
   return buildMerkleTree(leaves)[0]
@@ -75,13 +75,13 @@ export const EIP712_DOMAIN = {
  */
 export const EIP712_TYPES = {
   NodeRecord: [
-    { name: 'nodeId',      type: 'string' },
-    { name: 'ikPub',       type: 'string' },
-    { name: 'ekPub',       type: 'string' },
+    { name: 'node_id',      type: 'string' },
+    { name: 'ik_pub',       type: 'string' },
+    { name: 'ek_pub',       type: 'string' },
     { name: 'role',        type: 'string' },
     { name: 'status',      type: 'string' },
-    { name: 'enrolledAt',  type: 'uint256' },
-    { name: 'revokedAt',   type: 'uint256' },
+    { name: 'enrolled_at',  type: 'uint256' },
+    { name: 'revoked_at',   type: 'uint256' },
   ],
   Endpoints: [
     { name: 'primary',    type: 'string' },
@@ -89,70 +89,70 @@ export const EIP712_TYPES = {
     { name: 'updated_at', type: 'string' },
   ],
   RegistryDocument: [
-    { name: 'registryId',            type: 'string' },
+    { name: 'registry_id',            type: 'string' },
     { name: 'version',               type: 'uint256' },
-    { name: 'issuedAt',              type: 'uint256' },
-    { name: 'expiresAt',             type: 'uint256' },
-    { name: 'adminAddresses',        type: 'address[]' },
-    { name: 'backofficeServicePubkey', type: 'string' },
-    { name: 'allowedCurves',         type: 'string[]' },
-    { name: 'allowedProtocols',      type: 'string[]' },
-    { name: 'threshold',             type: 'uint256' },
+    { name: 'issued_at',              type: 'uint256' },
+    { name: 'expires_at',             type: 'uint256' },
+    { name: 'admin_addresses',        type: 'address[]' },
+    { name: 'backoffice_service_pubkey', type: 'string' },
+    { name: 'allowed_curves',         type: 'string[]' },
+    { name: 'allowed_protocols',      type: 'string[]' },
+    { name: 'admin_quorum',             type: 'uint256' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
-    { name: 'merkleRoot',            type: 'string' },
-    { name: 'prevDocumentHash',      type: 'string' },
-    { name: 'documentHash',          type: 'string' },
+    { name: 'merkle_root',            type: 'string' },
+    { name: 'prev_document_hash',      type: 'string' },
+    { name: 'document_hash',          type: 'string' },
   ],
 }
 
 type DocForSigning = {
-  registryId: string
+  registry_id: string
   version: number
-  issuedAt: number
-  expiresAt: number
-  adminAddresses: string[]
-  backofficeServicePubkey: string | null
-  allowedCurves: string[]
-  allowedProtocols: string[]
-  threshold: number
+  issued_at: number
+  expires_at: number
+  admin_addresses: string[]
+  backoffice_service_pubkey: string | null
+  allowed_curves: string[]
+  allowed_protocols: string[]
+  admin_quorum: number
   endpoints: RegistryEndpoints | null
   nodes: NodeRecord[]
-  merkleRoot: string
-  prevDocumentHash: string | null
-  documentHash: string
+  merkle_root: string
+  prev_document_hash: string | null
+  document_hash: string
 }
 
 /**
  * Build the EIP-712 typed data value from a document.
- * Normalizes fields for EIP-712 compatibility (null → empty string, revokedAt → 0).
+ * Normalizes fields for EIP-712 compatibility (null → empty string, revoked_at → 0).
  */
 export function buildTypedDataValue(doc: DocForSigning) {
   return {
-    registryId:            doc.registryId,
+    registry_id:            doc.registry_id,
     version:               doc.version,
-    issuedAt:              doc.issuedAt,
-    expiresAt:             doc.expiresAt,
-    adminAddresses:        doc.adminAddresses,
-    backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
-    allowedCurves:         doc.allowedCurves,
-    allowedProtocols:      doc.allowedProtocols,
-    threshold:             doc.threshold,
+    issued_at:              doc.issued_at,
+    expires_at:             doc.expires_at,
+    admin_addresses:        doc.admin_addresses,
+    backoffice_service_pubkey: doc.backoffice_service_pubkey ?? '',
+    allowed_curves:         doc.allowed_curves,
+    allowed_protocols:      doc.allowed_protocols,
+    admin_quorum:             doc.admin_quorum,
     endpoints:             doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
     nodes:                 doc.nodes.map(n => ({
-      nodeId:      n.nodeId,
-      ikPub:       n.ikPub,
-      ekPub:       n.ekPub,
+      node_id:      n.node_id,
+      ik_pub:       n.ik_pub,
+      ek_pub:       n.ek_pub,
       role:        n.role,
       status:      n.status,
-      enrolledAt:  n.enrolledAt,
-      revokedAt:   n.revokedAt ?? 0,
+      enrolled_at:  n.enrolled_at,
+      revoked_at:   n.revoked_at ?? 0,
     })),
-    merkleRoot:       doc.merkleRoot,
-    prevDocumentHash: doc.prevDocumentHash ?? '',
-    documentHash:     doc.documentHash,
+    merkle_root:       doc.merkle_root,
+    prev_document_hash: doc.prev_document_hash ?? '',
+    document_hash:     doc.document_hash,
   }
 }
 
@@ -206,20 +206,20 @@ export function deriveNodeId(ikPub: string, role: string, enrolledAt: number): s
 
 export function verifyMultiSig(
   doc: {
-    registryId: string
+    registry_id: string
     version: number
-    issuedAt: number
-    expiresAt: number
-    adminAddresses: string[]
-    backofficeServicePubkey: string | null
-    allowedCurves: string[]
-    allowedProtocols: string[]
-    threshold: number
+    issued_at: number
+    expires_at: number
+    admin_addresses: string[]
+    backoffice_service_pubkey: string | null
+    allowed_curves: string[]
+    allowed_protocols: string[]
+    admin_quorum: number
     endpoints: RegistryEndpoints | null
     nodes: NodeRecord[]
-    merkleRoot: string
-    prevDocumentHash: string | null
-    documentHash: string
+    merkle_root: string
+    prev_document_hash: string | null
+    document_hash: string
   },
   signatures: AdminSignature[],
   signingAdminAddresses: string[],
@@ -235,25 +235,25 @@ export function verifyMultiSig(
   let validCount = 0
 
   for (const sig of signatures) {
-    const addr = sig.adminAddress.toLowerCase()
+    const addr = sig.admin_address.toLowerCase()
 
     if (seen.has(addr)) {
-      return { valid: false, reason: `Duplicate admin address ${sig.adminAddress}` }
+      return { valid: false, reason: `Duplicate admin address ${sig.admin_address}` }
     }
     seen.add(addr)
 
     if (!adminSet.has(addr)) {
-      return { valid: false, reason: `Unknown admin address: ${sig.adminAddress}` }
+      return { valid: false, reason: `Unknown admin address: ${sig.admin_address}` }
     }
 
     // Signature format: 0x-prefixed 65-byte hex = 132 chars
     if (!/^0x[0-9a-f]{130}$/i.test(sig.signature)) {
-      return { valid: false, reason: `Malformed signature from ${sig.adminAddress}` }
+      return { valid: false, reason: `Malformed signature from ${sig.admin_address}` }
     }
 
-    const ok = verifySingleSig(doc, sig.signature, sig.adminAddress)
+    const ok = verifySingleSig(doc, sig.signature, sig.admin_address)
     if (!ok) {
-      return { valid: false, reason: `Invalid signature from ${sig.adminAddress}` }
+      return { valid: false, reason: `Invalid signature from ${sig.admin_address}` }
     }
     validCount++
   }

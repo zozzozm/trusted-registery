@@ -3,13 +3,13 @@ import { Type } from 'class-transformer'
 
 class NodeRecordDto {
   @IsString()
-  nodeId: string
+  node_id: string
 
   @IsString()
-  ikPub: string
+  ik_pub: string
 
   @IsString()
-  ekPub: string
+  ek_pub: string
 
   @IsIn(['USER_COSIGNER', 'PROVIDER_COSIGNER', 'RECOVERY_GUARDIAN'])
   role: string
@@ -18,16 +18,16 @@ class NodeRecordDto {
   status: string
 
   @IsNumber()
-  enrolledAt: number
+  enrolled_at: number
 
   @IsOptional()
   @IsNumber()
-  revokedAt?: number
+  revoked_at?: number
 }
 
 class AdminSignatureDto {
-  @Matches(/^0x[0-9a-fA-F]{40}$/, { message: 'adminAddress must be a valid Ethereum address' })
-  adminAddress: string
+  @Matches(/^0x[0-9a-fA-F]{40}$/, { message: 'admin_address must be a valid Ethereum address' })
+  admin_address: string
 
   @IsString()
   signature: string
@@ -47,35 +47,35 @@ class EndpointsDto {
 
 export class VerifyDocumentDto {
   @IsString()
-  registryId: string
+  registry_id: string
 
   @IsNumber()
   version: number
 
   @IsNumber()
-  issuedAt: number
+  issued_at: number
 
   @IsNumber()
-  expiresAt: number
+  expires_at: number
 
   @IsArray()
   @IsString({ each: true })
-  adminAddresses: string[]
+  admin_addresses: string[]
 
   @IsOptional()
   @IsString()
-  backofficeServicePubkey: string | null
+  backoffice_service_pubkey: string | null
 
   @IsArray()
   @IsString({ each: true })
-  allowedCurves: string[]
+  allowed_curves: string[]
 
   @IsArray()
   @IsString({ each: true })
-  allowedProtocols: string[]
+  allowed_protocols: string[]
 
   @IsNumber()
-  threshold: number
+  admin_quorum: number
 
   @IsOptional()
   @ValidateNested()
@@ -88,13 +88,13 @@ export class VerifyDocumentDto {
   nodes: NodeRecordDto[]
 
   @IsString()
-  merkleRoot: string
+  merkle_root: string
 
   @IsOptional()
-  prevDocumentHash: string | null
+  prev_document_hash: string | null
 
   @IsString()
-  documentHash: string
+  document_hash: string
 
   @IsArray()
   @ValidateNested({ each: true })
