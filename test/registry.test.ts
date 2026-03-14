@@ -54,24 +54,24 @@ async function signWithWallet(wallet: ethers.HDNodeWallet, doc: UnsignedDocument
 async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<RegistryDocument> {
   const now = Math.floor(Date.now() / 1000)
   const u: UnsignedDocument = {
-    registryId: 'test-registry-v1', version: 1,
-    issuedAt: now, expiresAt: now + 3600,
-    adminAddresses: adminAddresses(),
-    backofficeServicePubkey: null,
-    allowedCurves: ['secp256k1', 'ed25519'],
-    allowedProtocols: ['cggmp21', 'frost'],
-    threshold: 2,
+    registry_id: 'test-registry-v1', version: 1,
+    issued_at: now, expires_at: now + 3600,
+    admin_addresses: adminAddresses(),
+    backoffice_service_pubkey: null,
+    allowed_curves: ['secp256k1', 'ed25519'],
+    allowed_protocols: ['cggmp21', 'frost'],
+    admin_quorum: 2,
     endpoints: null,
-    nodes: [], merkleRoot: computeMerkleRoot([]),
-    prevDocumentHash: null, documentHash: '',
+    nodes: [], merkle_root: computeMerkleRoot([]),
+    prev_document_hash: null, document_hash: '',
     ...overrides,
   }
-  u.documentHash = computeDocumentHash(u)
+  u.document_hash = computeDocumentHash(u)
   return {
     ...u,
     signatures: [
-      { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], u) },
-      { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], u) },
+      { admin_address: wallets[0].address, signature: await signWithWallet(wallets[0], u) },
+      { admin_address: wallets[1].address, signature: await signWithWallet(wallets[1], u) },
     ]
   }
 }
@@ -82,8 +82,8 @@ async function signPending(pending: any): Promise<RegistryDocument> {
   return {
     ...pending,
     signatures: [
-      { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
-      { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
+      { admin_address: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
+      { admin_address: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
     ]
   }
 }
@@ -100,43 +100,43 @@ describe('Health', () => {
 describe('Verify — each failure case', () => {
   it('missing fields', async () => {
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send({
-      registryId: 'x', version: 1, issuedAt: 1, expiresAt: 1,
-      adminAddresses: adminAddresses(),
-      backofficeServicePubkey: null,
-      allowedCurves: ['secp256k1', 'ed25519'], allowedProtocols: ['cggmp21', 'frost'], threshold: 2,
+      registry_id: 'x', version: 1, issued_at: 1, expires_at: 1,
+      admin_addresses: adminAddresses(),
+      backoffice_service_pubkey: null,
+      allowed_curves: ['secp256k1', 'ed25519'], allowed_protocols: ['cggmp21', 'frost'], admin_quorum: 2,
       endpoints: null,
-      nodes: [], merkleRoot: 'x', prevDocumentHash: null, documentHash: 'x', signatures: []
+      nodes: [], merkle_root: 'x', prev_document_hash: null, document_hash: 'x', signatures: []
     })
     expect(r.status).toBe(200)
   })
   it('expired', async () => {
-    const d = await buildDoc({ expiresAt: Math.floor(Date.now()/1000) - 1 })
+    const d = await buildDoc({ expires_at: Math.floor(Date.now()/1000) - 1 })
     const unsigned: UnsignedDocument = {
-      registryId: d.registryId, version: d.version,
-      issuedAt: d.issuedAt, expiresAt: d.expiresAt,
-      adminAddresses: d.adminAddresses,
-      backofficeServicePubkey: d.backofficeServicePubkey,
-      allowedCurves: d.allowedCurves,
-      allowedProtocols: d.allowedProtocols,
-      threshold: d.threshold,
+      registry_id: d.registry_id, version: d.version,
+      issued_at: d.issued_at, expires_at: d.expires_at,
+      admin_addresses: d.admin_addresses,
+      backoffice_service_pubkey: d.backoffice_service_pubkey,
+      allowed_curves: d.allowed_curves,
+      allowed_protocols: d.allowed_protocols,
+      admin_quorum: d.admin_quorum,
       endpoints: d.endpoints,
-      nodes: d.nodes, merkleRoot: d.merkleRoot,
-      prevDocumentHash: d.prevDocumentHash, documentHash: '',
+      nodes: d.nodes, merkle_root: d.merkle_root,
+      prev_document_hash: d.prev_document_hash, document_hash: '',
     }
-    unsigned.documentHash = computeDocumentHash(unsigned)
-    d.documentHash = unsigned.documentHash
+    unsigned.document_hash = computeDocumentHash(unsigned)
+    d.document_hash = unsigned.document_hash
     d.signatures = [
-      { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
-      { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
+      { admin_address: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
+      { admin_address: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
     ]
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send(d)
     expect(r.body.steps.find((s:any) => s.step==='expiry').passed).toBe(false)
   })
   it('tampered content', async () => {
     const d = await buildDoc()
-    d.nodes = [{ nodeId:'hack', ikPub:'a'.repeat(64), ekPub:'b'.repeat(64), role:'RECOVERY_GUARDIAN', status:'ACTIVE', enrolledAt:1 }]
+    d.nodes = [{ node_id:'hack', ik_pub:'a'.repeat(64), ek_pub:'b'.repeat(64), role:'RECOVERY_GUARDIAN', status:'ACTIVE', enrolled_at:1 }]
     const r = await request(app.getHttpServer()).post('/api/registry/verify').send(d)
-    expect(r.body.steps.find((s:any) => s.step==='documentHash').passed).toBe(false)
+    expect(r.body.steps.find((s:any) => s.step==='document_hash').passed).toBe(false)
   })
   it('only 1 signature', async () => {
     const d = await buildDoc()
@@ -162,8 +162,8 @@ describe('Full publish flow', () => {
   it('current returns v1 with embedded admin addresses', async () => {
     const r = await request(app.getHttpServer()).get('/api/registry/current')
     expect(r.body.version).toBe(1)
-    expect(r.body.adminAddresses).toHaveLength(3)
-    expect(r.body.adminAddresses[0].toLowerCase()).toBe(wallets[0].address.toLowerCase())
+    expect(r.body.admin_addresses).toHaveLength(3)
+    expect(r.body.admin_addresses[0].toLowerCase()).toBe(wallets[0].address.toLowerCase())
   })
   it('health shows admin source as document', async () => {
     const r = await request(app.getHttpServer()).get('/api/registry/health')
@@ -171,12 +171,12 @@ describe('Full publish flow', () => {
   })
   it('enroll proposes a draft', async () => {
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: 'a'.repeat(64), ekPub: 'b'.repeat(64),
+      ik_pub: 'a'.repeat(64), ek_pub: 'b'.repeat(64),
       role: 'PROVIDER_COSIGNER',    })
     expect(r.status).toBe(200)
     expect(r.body.draft.version).toBe(2)
     expect(r.body.draft.nodes.length).toBe(1)
-    expect(r.body.draft.adminAddresses).toEqual(adminAddresses())
+    expect(r.body.draft.admin_addresses).toEqual(adminAddresses())
   })
   it('sign and publish enrollment', async () => {
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
@@ -197,10 +197,10 @@ describe('Admin rotation', () => {
     const newWallet = ethers.Wallet.createRandom()
     const newAdmins = [wallets[0].address, wallets[1].address, newWallet.address]
     const r = await request(app.getHttpServer()).post('/api/registry/admins/propose').send({
-      adminAddresses: newAdmins,
+      admin_addresses: newAdmins,
     })
     expect(r.status).toBe(200)
-    expect(r.body.adminAddresses).toEqual(newAdmins)
+    expect(r.body.admin_addresses).toEqual(newAdmins)
   })
   it('current admins sign the admin change', async () => {
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
@@ -211,9 +211,9 @@ describe('Admin rotation', () => {
   })
   it('new admin addresses are now active', async () => {
     const r = await request(app.getHttpServer()).get('/api/registry/current')
-    expect(r.body.adminAddresses).toHaveLength(3)
+    expect(r.body.admin_addresses).toHaveLength(3)
     // wallet[2] is no longer admin, replaced by newWallet
-    expect(r.body.adminAddresses.map((a: string) => a.toLowerCase())).not.toContain(wallets[2].address.toLowerCase())
+    expect(r.body.admin_addresses.map((a: string) => a.toLowerCase())).not.toContain(wallets[2].address.toLowerCase())
   })
   it('old admin (wallet[2]) can no longer sign', async () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
@@ -222,7 +222,7 @@ describe('Admin rotation', () => {
     const { signatures: _, ...unsigned } = pending
     const sig = await signDocument(unsigned, wallets[2].privateKey)
     const r = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminAddress: wallets[2].address, signature: sig,
+      admin_address: wallets[2].address, signature: sig,
     })
     expect(r.status).toBe(400)
     await request(app.getHttpServer()).delete('/api/registry/pending')
@@ -233,16 +233,16 @@ describe('Security', () => {
   it('draft locked during signing — rejects enroll after sign', async () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: 'c'.repeat(64), ekPub: 'd'.repeat(64),
+      ik_pub: 'c'.repeat(64), ek_pub: 'd'.repeat(64),
       role: 'USER_COSIGNER',    })
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
     const { signatures: _, ...unsigned } = pending
     const sig = await signDocument(unsigned, wallets[0].privateKey)
     await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminAddress: wallets[0].address, signature: sig,
+      admin_address: wallets[0].address, signature: sig,
     })
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: 'e'.repeat(64), ekPub: 'f'.repeat(64),
+      ik_pub: 'e'.repeat(64), ek_pub: 'f'.repeat(64),
       role: 'USER_COSIGNER',    })
     expect(r.status).toBe(409)
     await request(app.getHttpServer()).delete('/api/registry/pending')
@@ -255,14 +255,14 @@ describe('Security', () => {
     if (!activeNode) throw new Error('No active node to revoke')
 
     await request(app.getHttpServer()).post('/api/registry/nodes/revoke').send({
-      nodeId: activeNode.nodeId, reason: 'test revocation',
+      node_id: activeNode.node_id, reason: 'test revocation',
     })
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
     const signed = await signPending(pending)
     await request(app.getHttpServer()).post('/api/registry/publish').send(signed)
 
     const r = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: activeNode.ikPub, ekPub: activeNode.ekPub,
+      ik_pub: activeNode.ik_pub, ek_pub: activeNode.ek_pub,
       role: activeNode.role,
     })
     expect(r.status).toBe(409)
@@ -283,8 +283,8 @@ describe('Security', () => {
       ...pending,
       malicious: 'data',
       signatures: [
-        { adminAddress: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
-        { adminAddress: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
+        { admin_address: wallets[0].address, signature: await signWithWallet(wallets[0], unsigned) },
+        { admin_address: wallets[1].address, signature: await signWithWallet(wallets[1], unsigned) },
       ]
     }
     const r = await request(app.getHttpServer()).post('/api/registry/publish').send(docWithExtra)
@@ -294,30 +294,30 @@ describe('Security', () => {
     expect(current.malicious).toBeUndefined()
   })
 
-  it('nodeId collision check', async () => {
+  it('node_id collision check', async () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     const r1 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: '1'.repeat(64), ekPub: '2'.repeat(64),
+      ik_pub: '1'.repeat(64), ek_pub: '2'.repeat(64),
       role: 'RECOVERY_GUARDIAN',    })
     expect(r1.status).toBe(200)
     const r2 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: '1'.repeat(64), ekPub: '3'.repeat(64),
+      ik_pub: '1'.repeat(64), ek_pub: '3'.repeat(64),
       role: 'RECOVERY_GUARDIAN',    })
     expect(r2.status).toBe(409)
     await request(app.getHttpServer()).delete('/api/registry/pending')
   })
 
-  it('adminAddress validation — rejects invalid values', async () => {
+  it('admin_address validation — rejects invalid values', async () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/pending')
 
     const r1 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminAddress: 'not-an-address', signature: '0x' + 'a'.repeat(130),
+      admin_address: 'not-an-address', signature: '0x' + 'a'.repeat(130),
     })
     expect(r1.status).toBe(400)
 
     const r2 = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminAddress: 'a'.repeat(40), signature: '0x' + 'a'.repeat(130),
+      admin_address: 'a'.repeat(40), signature: '0x' + 'a'.repeat(130),
     })
     expect(r2.status).toBe(400)
 
@@ -326,13 +326,13 @@ describe('Security', () => {
 
   it('invalid role — rejects bad role value', async () => {
     const r1 = await request(app.getHttpServer()).post('/api/registry/nodes/enroll').send({
-      ikPub: '5'.repeat(64), ekPub: '6'.repeat(64),
+      ik_pub: '5'.repeat(64), ek_pub: '6'.repeat(64),
       role: 'INVALID_ROLE',
     })
     expect(r1.status).toBe(400)
   })
 
-  it('documentHash mismatch on sign — rejects stale hash', async () => {
+  it('document_hash mismatch on sign — rejects stale hash', async () => {
     await request(app.getHttpServer()).delete('/api/registry/pending')
     await request(app.getHttpServer()).post('/api/registry/pending')
     const pending = (await request(app.getHttpServer()).get('/api/registry/pending')).body
@@ -340,7 +340,7 @@ describe('Security', () => {
     const { signatures: _, ...unsigned } = pending
     const sig = await signDocument(unsigned, wallets[0].privateKey)
     const r = await request(app.getHttpServer()).post('/api/registry/pending/sign').send({
-      adminAddress: wallets[0].address, signature: sig, documentHash: 'wrong_hash_value',
+      admin_address: wallets[0].address, signature: sig, document_hash: 'wrong_hash_value',
     })
     expect(r.status).toBe(409)
 

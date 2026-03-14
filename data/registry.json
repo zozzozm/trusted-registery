@@ -1,23 +1,23 @@
 {
-  "registryId": "dev-custody-v1",
-  "version": 9,
-  "issuedAt": 1773495184,
-  "expiresAt": 1774099984,
-  "adminAddresses": [
+  "registry_id": "dev-custody-v1",
+  "version": 10,
+  "issued_at": 1773521373,
+  "expires_at": 1774126173,
+  "admin_addresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
     "0xff6Cb288bFc8D8b8B43c4B59439E4b66dd0e11c4"
   ],
-  "backofficeServicePubkey": null,
-  "allowedCurves": [
+  "backoffice_service_pubkey": null,
+  "allowed_curves": [
     "secp256k1",
     "ed25519"
   ],
-  "allowedProtocols": [
+  "allowed_protocols": [
     "cggmp21",
     "frost"
   ],
-  "threshold": 2,
+  "admin_quorum": 2,
   "endpoints": {
     "primary": "https://raw.githubusercontent.com/zozzozm/trusted-registery/refs/heads/main/data/registry.json",
     "mirrors": [],
@@ -25,25 +25,25 @@
   },
   "nodes": [
     {
-      "ikPub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
-      "ekPub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
+      "ik_pub": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "ek_pub": "b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3",
       "role": "USER_COSIGNER",
-      "nodeId": "fd4e272dc6dbc4adf3f96c7d314918ca46e631711e9ebb786455b333f69e1439",
+      "node_id": "fd4e272dc6dbc4adf3f96c7d314918ca46e631711e9ebb786455b333f69e1439",
       "status": "ACTIVE",
-      "enrolledAt": 1773186725
+      "enrolled_at": 1773186725
     }
   ],
-  "merkleRoot": "22a7d47c7eb59907e68554332e98ff5c1289d65aef9b67a6890946c18ad416d0",
-  "prevDocumentHash": "33688f488953dd465ed76cf5394b9a50f8ae3d30850eadc89ef5db6523119cb4",
-  "documentHash": "6fd78e326c6a29b87d6499503986ae724dfca6379de529422a42385c3a5f8b84",
+  "merkle_root": "abb38ab54fba66f2bf7855992cf0b5186c221991d4ae64c06ebdd7acb0cd8714",
+  "prev_document_hash": "6fd78e326c6a29b87d6499503986ae724dfca6379de529422a42385c3a5f8b84",
+  "document_hash": "e1a41c14affa4d2f1d3c5a66022bb0a9b87a12e9bc98469f3d9a535a47aa0061",
   "signatures": [
     {
-      "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
-      "signature": "0xc48f9b0b5bd3c3551fdbbaae10bd9356c8865bfe618dea87311c518bb3869b6e2cac88190cd52bb5f6bc898f919fe22e06ebe48c1107febebd589591948c70591c"
+      "admin_address": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
+      "signature": "0x36e430f51d153cb9ed62def11c6e6f5f0c235e8b0502fd34abbfe33a092d3f9a60781626703ebdb98aaf584d62e49fcd26bc61a3591ad020112e25cda2d828b01b"
     },
     {
-      "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
-      "signature": "0x64237f69ea9960cf70ecd21ae9704a7cffb88e74fe548436c8c6456f902871c23ae0f5e4eacd1524386c65c61631d2c50514857d7dd316897516b28f11b647481b"
+      "admin_address": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
+      "signature": "0x116604c32dd8d106746f421dca29ad2df84baa12ce107544f88f297e3b0eeaa834d2637059b8698b8a8fc6dcc6009fabc519ebb5504c9db59cbf4d26087594931b"
     }
   ]
 }

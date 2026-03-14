@@ -4,14 +4,14 @@ export class ProposeMpcPolicyDto {
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })
-  allowedCurves: string[]
+  allowed_curves: string[]
 
   @IsArray()
   @ArrayNotEmpty()
   @IsString({ each: true })
-  allowedProtocols: string[]
+  allowed_protocols: string[]
 
   @IsNumber()
   @Min(2)
-  threshold: number
+  admin_quorum: number
 }

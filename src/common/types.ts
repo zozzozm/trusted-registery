@@ -2,17 +2,17 @@ export type NodeRole   = 'USER_COSIGNER' | 'PROVIDER_COSIGNER' | 'RECOVERY_GUARD
 export type NodeStatus = 'ACTIVE' | 'REVOKED'
 
 export interface NodeRecord {
-  nodeId:      string
-  ikPub:       string
-  ekPub:       string
+  node_id:      string
+  ik_pub:       string
+  ek_pub:       string
   role:        NodeRole
   status:      NodeStatus
-  enrolledAt:  number
-  revokedAt?:  number
+  enrolled_at:  number
+  revoked_at?:  number
 }
 
 export interface AdminSignature {
-  adminAddress: string
+  admin_address: string
   signature:    string
 }
 
@@ -23,27 +23,27 @@ export interface RegistryEndpoints {
 }
 
 export interface RegistryDocument {
-  registryId:            string
+  registry_id:            string
   version:               number
-  issuedAt:              number
-  expiresAt:             number
-  adminAddresses:        string[]
-  backofficeServicePubkey: string | null
-  allowedCurves:         string[]
-  allowedProtocols:      string[]
-  threshold:             number
+  issued_at:              number
+  expires_at:             number
+  admin_addresses:        string[]
+  backoffice_service_pubkey: string | null
+  allowed_curves:         string[]
+  allowed_protocols:      string[]
+  admin_quorum:             number
   endpoints:             RegistryEndpoints | null
   nodes:                 NodeRecord[]
-  merkleRoot:            string
-  prevDocumentHash:      string | null
-  documentHash:          string
+  merkle_root:            string
+  prev_document_hash:      string | null
+  document_hash:          string
   signatures:            AdminSignature[]
 }
 
 export type UnsignedDocument = Omit<RegistryDocument, 'signatures'>
 
 export interface HighWaterMark {
-  registryId:  string
+  registry_id:  string
   maxVersion:  number
   lastDocHash: string
   updatedAt:   number

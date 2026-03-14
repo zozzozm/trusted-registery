@@ -53,8 +53,8 @@ async function main() {
     console.log(`Fetched draft v${draft.version}`)
   }
 
-  console.log(`Document hash: ${draft.documentHash}`)
-  console.log(`Registry ID:   ${draft.registryId}`)
+  console.log(`Document hash: ${draft.document_hash}`)
+  console.log(`Registry ID:   ${draft.registry_id}`)
   console.log(`Version:       ${draft.version}`)
   console.log(`Nodes:         ${draft.nodes?.length ?? 0}`)
   console.log()
@@ -75,7 +75,7 @@ async function main() {
     const signRes = await fetch(`${serverUrl}/registry/pending/sign`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminAddress: wallet.address, signature: sig, documentHash: draft.documentHash }),
+      body: JSON.stringify({ admin_address: wallet.address, signature: sig, document_hash: draft.document_hash }),
     })
     if (signRes.ok) {
       draft = await signRes.json() as any
@@ -88,10 +88,10 @@ async function main() {
   } else {
     // Merge signature into the draft file
     const existing = draft.signatures ?? []
-    if (existing.find((s: any) => s.adminAddress?.toLowerCase() === wallet.address.toLowerCase())) {
+    if (existing.find((s: any) => s.admin_address?.toLowerCase() === wallet.address.toLowerCase())) {
       console.log(`Admin ${wallet.address} already signed this draft`)
     } else {
-      existing.push({ adminAddress: wallet.address, signature: sig })
+      existing.push({ admin_address: wallet.address, signature: sig })
       draft.signatures = existing
     }
   }

@@ -192,7 +192,7 @@
     <div class="section">
       <h2>MPC Policy</h2>
       <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
-        Configure allowed elliptic curves, MPC protocols, and minimum threshold for signing ceremonies.
+        Configure allowed elliptic curves, MPC protocols, and minimum admin quorum for signing ceremonies.
       </p>
       <div class="form-group">
         <label>Allowed Curves (comma-separated)</label>
@@ -203,8 +203,8 @@
         <input id="propose-protocols" placeholder="cggmp21, frost" value="cggmp21, frost">
       </div>
       <div class="form-group">
-        <label>Threshold (min signers required)</label>
-        <input id="propose-threshold" type="number" min="2" value="2">
+        <label>Admin Quorum (min signers required)</label>
+        <input id="propose-admin-quorum" type="number" min="2" value="2">
       </div>
       <button class="secondary" onclick="loadCurrentMpcPolicy()">Load Current</button>
       <button class="purple" onclick="proposeMpcPolicy()">Propose Policy</button>
@@ -336,8 +336,8 @@
         document.getElementById('sec-connect').classList.add('done')
 
         const health = await fetch(`${API}/health`).then(r => r.json())
-        adminAddresses = health.adminAddresses.map(a => a.address.toLowerCase())
-        minSignatures = health.adminAddresses.length >= 2 ? 2 : 1
+        adminAddresses = health.admin_addresses.map(a => a.address.toLowerCase())
+        minSignatures = health.admin_addresses.length >= 2 ? 2 : 1
         const isAdmin = adminAddresses.includes(account.toLowerCase())
         document.getElementById('admin-badge').innerHTML = isAdmin
           ? ' <span class="badge badge-ok">Admin</span>'
@@ -372,10 +372,10 @@
         document.getElementById('cur-nodes').textContent = doc.nodes.length + ' (' + doc.nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
         document.getElementById('cur-mpc-policy').innerHTML = renderMpcPolicy(doc)
         document.getElementById('cur-endpoints').innerHTML = renderEndpoints(doc.endpoints)
-        document.getElementById('cur-admins').innerHTML = doc.adminAddresses.map(a =>
+        document.getElementById('cur-admins').innerHTML = doc.admin_addresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
-        document.getElementById('cur-expires').textContent = new Date(doc.expiresAt * 1000).toLocaleString()
+        document.getElementById('cur-expires').textContent = new Date(doc.expires_at * 1000).toLocaleString()
         document.getElementById('current-info').classList.remove('hidden')
       } catch {}
     }
@@ -429,7 +429,7 @@
       document.getElementById('mgmt-draft-nodes').textContent = draft.nodes.length + ' node(s)'
       document.getElementById('mgmt-draft-mpc-policy').innerHTML = renderMpcPolicy(draft)
       document.getElementById('mgmt-draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
-      document.getElementById('mgmt-draft-hash').textContent = draft.documentHash
+      document.getElementById('mgmt-draft-hash').textContent = draft.document_hash
       document.getElementById('mgmt-draft-sigs').textContent = draft.signatures.length + '/' + minSignatures
       document.getElementById('manage-draft-info').classList.remove('hidden')
     }
@@ -448,12 +448,12 @@
         const res = await fetch(`${API}/nodes/enroll`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ikPub, ekPub, role }),
+          body: JSON.stringify({ ik_pub: ikPub, ek_pub: ekPub, role }),
         })
         const result = await res.json()
         if (res.ok) {
           draft = result.draft
-          showMsg('enroll-msg', 'Node enrolled! ID: ' + result.nodeId, true)
+          showMsg('enroll-msg', 'Node enrolled! ID: ' + result.node_id, true)
           showDraftInfo()
           document.getElementById('enroll-ikpub').value = ''
           document.getElementById('enroll-ekpub').value = ''
@@ -475,7 +475,7 @@
         const res = await fetch(`${API}/nodes/revoke`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nodeId, reason }),
+          body: JSON.stringify({ node_id: nodeId, reason }),
         })
         const result = await res.json()
         if (res.ok) {
@@ -500,9 +500,9 @@
         el.innerHTML = nodes.map(n => `
           <div class="node-item">
             <div><strong>${n.role}</strong> <span class="badge ${n.status === 'ACTIVE' ? 'badge-active' : 'badge-revoked'}">${n.status}</span></div>
-            <div class="mono" style="margin-top:0.25rem; font-size:0.75rem;">ID: ${n.nodeId}</div>
-            <div class="mono" style="font-size:0.75rem;">ikPub: ${n.ikPub.substring(0,16)}...</div>
-            ${n.status === 'ACTIVE' ? `<button class="danger" style="margin-top:0.5rem; font-size:0.75rem; padding:0.25rem 0.75rem;" onclick="document.getElementById('revoke-nodeid').value='${n.nodeId}';">Revoke</button>` : ''}
+            <div class="mono" style="margin-top:0.25rem; font-size:0.75rem;">ID: ${n.node_id}</div>
+            <div class="mono" style="font-size:0.75rem;">ikPub: ${n.ik_pub.substring(0,16)}...</div>
+            ${n.status === 'ACTIVE' ? `<button class="danger" style="margin-top:0.5rem; font-size:0.75rem; padding:0.25rem 0.75rem;" onclick="document.getElementById('revoke-nodeid').value='${n.node_id}';">Revoke</button>` : ''}
           </div>
         `).join('')
       } catch (e) { document.getElementById('node-list').innerHTML = '<span class="error-text">' + e.message + '</span>' }
@@ -518,16 +518,16 @@
           return
         }
         draft = await res.json()
-        document.getElementById('draft-registry').textContent = draft.registryId
+        document.getElementById('draft-registry').textContent = draft.registry_id
         document.getElementById('draft-version').textContent = 'v' + draft.version
         document.getElementById('draft-nodes-count').textContent = draft.nodes.length + ' node(s)'
-        document.getElementById('draft-admins').innerHTML = draft.adminAddresses.map(a =>
+        document.getElementById('draft-admins').innerHTML = draft.admin_addresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
         document.getElementById('draft-mpc-policy').innerHTML = renderMpcPolicy(draft)
         document.getElementById('draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
-        document.getElementById('draft-hash').textContent = draft.documentHash
-        document.getElementById('draft-merkle').textContent = draft.merkleRoot
+        document.getElementById('draft-hash').textContent = draft.document_hash
+        document.getElementById('draft-merkle').textContent = draft.merkle_root
         document.getElementById('sign-draft-info').classList.remove('hidden')
         document.getElementById('sec-draft').classList.add('done')
         document.getElementById('btn-sign').disabled = false
@@ -572,9 +572,9 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            adminAddress: account,
+            admin_address: account,
             signature: signature,
-            documentHash: draft.documentHash,
+            document_hash: draft.document_hash,
           }),
         })
         const result = await res.json()
@@ -661,7 +661,7 @@
 
       listEl.innerHTML = draft.signatures.map(s =>
         `<div class="sig-item">
-          <span class="addr">${s.adminAddress}</span>
+          <span class="addr">${s.admin_address}</span>
           <span class="badge badge-ok">signed</span>
           <div style="margin-top:0.25rem; color:#8b949e; font-size:0.75rem;">${s.signature.substring(0, 42)}...</div>
         </div>`
@@ -687,7 +687,7 @@
         const container = document.getElementById('admin-inputs')
         // Reset to match current admin count
         container.innerHTML = ''
-        doc.adminAddresses.forEach((addr, i) => {
+        doc.admin_addresses.forEach((addr, i) => {
           const div = document.createElement('div')
           div.className = 'form-group'
           div.innerHTML = `<label>Admin ${i}</label><input class="admin-addr-input" placeholder="0x..." value="${addr}">`
@@ -707,7 +707,7 @@
         const res = await fetch(`${API}/admins/propose`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ adminAddresses: addresses }),
+          body: JSON.stringify({ admin_addresses: addresses }),
         })
         const result = await res.json()
         if (res.ok) {
@@ -722,12 +722,12 @@
 
     // ── MPC Policy ─────────────────────────────────────────────────────────
     function renderMpcPolicy(doc) {
-      const curves = doc.allowedCurves || []
-      const protocols = doc.allowedProtocols || []
-      const t = doc.threshold ?? 2
+      const curves = doc.allowed_curves || []
+      const protocols = doc.allowed_protocols || []
+      const t = doc.admin_quorum ?? 2
       return `<div style="font-size:0.8rem;">Curves: [${curves.join(', ')}]</div>` +
              `<div style="font-size:0.8rem;">Protocols: [${protocols.join(', ')}]</div>` +
-             `<div style="font-size:0.8rem;">Threshold: ${t}</div>`
+             `<div style="font-size:0.8rem;">Admin Quorum: ${t}</div>`
     }
 
     async function loadCurrentMpcPolicy() {
@@ -735,9 +735,9 @@
         const res = await fetch(`${API}/current`)
         if (!res.ok) { showMsg('mpc-policy-msg', 'No current registry', false); return }
         const doc = await res.json()
-        document.getElementById('propose-curves').value = (doc.allowedCurves || []).join(', ')
-        document.getElementById('propose-protocols').value = (doc.allowedProtocols || []).join(', ')
-        document.getElementById('propose-threshold').value = doc.threshold ?? 2
+        document.getElementById('propose-curves').value = (doc.allowed_curves || []).join(', ')
+        document.getElementById('propose-protocols').value = (doc.allowed_protocols || []).join(', ')
+        document.getElementById('propose-admin-quorum').value = doc.admin_quorum ?? 2
         showMsg('mpc-policy-msg', 'Loaded current MPC policy', true)
       } catch (e) { showMsg('mpc-policy-msg', e.message, false) }
     }
@@ -745,18 +745,18 @@
     async function proposeMpcPolicy() {
       const allowedCurves = document.getElementById('propose-curves').value.split(',').map(s => s.trim()).filter(Boolean)
       const allowedProtocols = document.getElementById('propose-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
-      const threshold = parseInt(document.getElementById('propose-threshold').value, 10)
+      const adminQuorum = parseInt(document.getElementById('propose-admin-quorum').value, 10)
       if (!allowedCurves.length || !allowedProtocols.length) {
         showMsg('mpc-policy-msg', 'Curves and protocols are required', false); return
       }
-      if (isNaN(threshold) || threshold < 2) {
-        showMsg('mpc-policy-msg', 'Threshold must be >= 2', false); return
+      if (isNaN(adminQuorum) || adminQuorum < 2) {
+        showMsg('mpc-policy-msg', 'Admin Quorum must be >= 2', false); return
       }
       try {
         const res = await fetch(`${API}/mpc-policy/propose`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ allowedCurves, allowedProtocols, threshold }),
+          body: JSON.stringify({ allowed_curves: allowedCurves, allowed_protocols: allowedProtocols, admin_quorum: adminQuorum }),
         })
         const result = await res.json()
         if (res.ok) {
