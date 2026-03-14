@@ -151,36 +151,6 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
-  /** POST /registry/threshold/propose — propose a new threshold value */
-  proposeThreshold(body: { threshold: number }): RegistryDocument {
-    if (this.draftLocked) {
-      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
-    }
-
-    const threshold = body.threshold
-    if (!Number.isInteger(threshold) || threshold < 0) {
-      throw new BadRequestException('threshold must be a non-negative integer')
-    }
-
-    // Auto-create draft if none exists
-    if (!this.stagedDraft) {
-      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
-      const base = this._buildDraft(nodes)
-      this.stagedDraft = { ...base, signatures: [] }
-    }
-
-    const activeNodes = this.stagedDraft.nodes.filter(n => n.status === 'ACTIVE').length
-    if (threshold > activeNodes) {
-      throw new BadRequestException(`threshold (${threshold}) exceeds active node count (${activeNodes})`)
-    }
-
-    this.stagedDraft.threshold = threshold
-    this._refreshDraftHash()
-
-    this.audit('THRESHOLD_PROPOSED', { threshold })
-    return this.stagedDraft
-  }
-
   /** POST /registry/backoffice-pubkey/propose — propose a new backoffice service public key */
   proposeBackofficePubkey(body: { backofficeServicePubkey: string }): RegistryDocument {
     if (this.draftLocked) {
@@ -206,21 +176,21 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
-  /** POST /registry/mpc-policy/propose — propose MPC policy (curves, protocols, minThreshold) */
-  proposeMpcPolicy(body: { allowedCurves: string[]; allowedProtocols: string[]; minThreshold: number }): RegistryDocument {
+  /** POST /registry/mpc-policy/propose — propose MPC policy (curves, protocols, threshold) */
+  proposeMpcPolicy(body: { allowedCurves: string[]; allowedProtocols: string[]; threshold: number }): RegistryDocument {
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
 
-    const { allowedCurves, allowedProtocols, minThreshold } = body
+    const { allowedCurves, allowedProtocols, threshold } = body
     if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
       throw new BadRequestException('allowedCurves must be a non-empty array')
     }
     if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
       throw new BadRequestException('allowedProtocols must be a non-empty array')
     }
-    if (!Number.isInteger(minThreshold) || minThreshold < 2) {
-      throw new BadRequestException('minThreshold must be an integer >= 2')
+    if (!Number.isInteger(threshold) || threshold < 2) {
+      throw new BadRequestException('threshold must be an integer >= 2')
     }
 
     // Auto-create draft if none exists
@@ -232,10 +202,10 @@ export class RegistryService implements OnModuleInit {
 
     this.stagedDraft.allowedCurves = allowedCurves
     this.stagedDraft.allowedProtocols = allowedProtocols
-    this.stagedDraft.minThreshold = minThreshold
+    this.stagedDraft.threshold = threshold
     this._refreshDraftHash()
 
-    this.audit('MPC_POLICY_PROPOSED', { allowedCurves, allowedProtocols, minThreshold })
+    this.audit('MPC_POLICY_PROPOSED', { allowedCurves, allowedProtocols, threshold })
     return this.stagedDraft
   }
 
@@ -332,7 +302,7 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash','threshold','allowedCurves','allowedProtocols','minThreshold']
+    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash','allowedCurves','allowedProtocols','threshold']
     const missing  = requiredFields.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
@@ -364,10 +334,9 @@ export class RegistryService implements OnModuleInit {
       expiresAt:             doc.expiresAt,
       adminAddresses:        doc.adminAddresses,
       backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
-      threshold:             doc.threshold ?? 0,
       allowedCurves:         doc.allowedCurves ?? [],
       allowedProtocols:      doc.allowedProtocols ?? [],
-      minThreshold:          doc.minThreshold ?? 2,
+      threshold:             doc.threshold ?? 2,
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkleRoot:            doc.merkleRoot,
@@ -436,29 +405,18 @@ export class RegistryService implements OnModuleInit {
       }
     }
 
-    // Step 9 — Threshold validation
-    const threshold = doc.threshold ?? 0
-    const activeNodes = Array.isArray(doc.nodes) ? doc.nodes.filter((n: any) => n.status === 'ACTIVE').length : 0
-    if (threshold < 0) {
-      fail('threshold', 'Threshold must be non-negative')
-    } else if (threshold > activeNodes) {
-      fail('threshold', `Threshold (${threshold}) exceeds active node count (${activeNodes})`)
-    } else {
-      pass('threshold', `Threshold ${threshold} <= ${activeNodes} active nodes`)
-    }
-
-    // Step 10 — MPC policy validation
+    // Step 9 — MPC policy validation (curves, protocols, threshold)
     const allowedCurves = doc.allowedCurves ?? []
     const allowedProtocols = doc.allowedProtocols ?? []
-    const minThreshold = doc.minThreshold ?? 2
+    const threshold = doc.threshold ?? 2
     if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
       fail('mpcPolicy', 'allowedCurves must be a non-empty array')
     } else if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
       fail('mpcPolicy', 'allowedProtocols must be a non-empty array')
-    } else if (!Number.isInteger(minThreshold) || minThreshold < 2) {
-      fail('mpcPolicy', 'minThreshold must be an integer >= 2')
+    } else if (!Number.isInteger(threshold) || threshold < 2) {
+      fail('mpcPolicy', 'threshold must be an integer >= 2')
     } else {
-      pass('mpcPolicy', `Curves: [${allowedCurves.join(', ')}], Protocols: [${allowedProtocols.join(', ')}], minThreshold: ${minThreshold}`)
+      pass('mpcPolicy', `Curves: [${allowedCurves.join(', ')}], Protocols: [${allowedProtocols.join(', ')}], Threshold: ${threshold}`)
     }
 
     // Step 11 — Endpoints validation
@@ -531,10 +489,9 @@ export class RegistryService implements OnModuleInit {
       throw new ConflictException('nodeId collision — try again')
     }
 
-    // Add the node and auto-increment threshold
+    // Add the node
     const newNode: NodeRecord = { ...body, nodeId, status: 'ACTIVE', enrolledAt: now }
     this.stagedDraft.nodes.push(newNode)
-    this.stagedDraft.threshold += 1
     this._refreshDraftHash()
 
     this.audit('ENROLL_PROPOSED', { nodeId, role: body.role })
@@ -560,13 +517,10 @@ export class RegistryService implements OnModuleInit {
     if (!node) throw new NotFoundException(`Node ${body.nodeId} not found`)
     if (node.status === 'REVOKED') throw new ConflictException('Node is already revoked')
 
-    // Revoke, decrement threshold, and refresh hash
+    // Revoke and refresh hash
     const now = Math.floor(Date.now() / 1000)
     node.status = 'REVOKED'
     node.revokedAt = now
-    if (this.stagedDraft.threshold > 0) {
-      this.stagedDraft.threshold -= 1
-    }
     this._refreshDraftHash()
 
     this.audit('REVOKE_PROPOSED', { nodeId: body.nodeId, reason: body.reason })
@@ -595,10 +549,9 @@ export class RegistryService implements OnModuleInit {
       expiresAt:             doc.expiresAt,
       adminAddresses:        doc.adminAddresses,
       backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
-      threshold:             doc.threshold ?? 0,
       allowedCurves:         doc.allowedCurves ?? [],
       allowedProtocols:      doc.allowedProtocols ?? [],
-      minThreshold:          doc.minThreshold ?? 2,
+      threshold:             doc.threshold ?? 2,
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkleRoot:            doc.merkleRoot,
@@ -645,10 +598,9 @@ export class RegistryService implements OnModuleInit {
       expiresAt:             now + CONFIG.EXPIRY_SECONDS,
       adminAddresses:        admins,
       backofficeServicePubkey: this.currentDoc?.backofficeServicePubkey ?? null,
-      threshold:             this.currentDoc?.threshold ?? 0,
       allowedCurves:         this.currentDoc?.allowedCurves ?? ['secp256k1', 'ed25519'],
       allowedProtocols:      this.currentDoc?.allowedProtocols ?? ['cggmp21', 'frost'],
-      minThreshold:          this.currentDoc?.minThreshold ?? 2,
+      threshold:             this.currentDoc?.threshold ?? 2,
       endpoints:             this.currentDoc?.endpoints ?? null,
       nodes:                 sorted,
       merkleRoot:            computeMerkleRoot(sorted),

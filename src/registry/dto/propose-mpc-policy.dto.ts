@@ -13,5 +13,5 @@ export class ProposeMpcPolicyDto {
 
   @IsNumber()
   @Min(2)
-  minThreshold: number
+  threshold: number
 }

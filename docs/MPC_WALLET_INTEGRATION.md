@@ -36,10 +36,9 @@ The `registry.json` file contains a single `RegistryDocument`:
   "expiresAt":        1712592000,               // unix timestamp (seconds)
   "adminAddresses":   ["0xAbc...", "0xDef...", "0x123..."],  // Ethereum addresses of admins
   "backofficeServicePubkey": "64-hex-chars...", // backoffice service public key (or null)
-  "threshold":        2,                        // minimum node count for MPC ceremonies (auto-managed)
   "allowedCurves":    ["secp256k1", "ed25519"], // elliptic curves allowed for MPC key generation
   "allowedProtocols": ["cggmp21", "frost"],     // MPC protocols allowed for signing ceremonies
-  "minThreshold":     2,                        // minimum t-of-n threshold for MPC signing (>= 2)
+  "threshold":        2,                        // minimum t-of-n threshold for MPC signing (>= 2)
   "endpoints": {                                // where clients can fetch registry updates (or null)
     "primary":    "https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json",
     "mirrors":    ["https://mirror-1.custody.internal/registry.json"],
@@ -75,14 +74,6 @@ The `registry.json` file contains a single `RegistryDocument`:
 | `PROVIDER_COSIGNER` | The cloud service's key-share holder |
 | `RECOVERY_GUARDIAN` | Backup signer used for recovery flows |
 
-### Threshold
-
-The `threshold` field indicates the minimum number of active nodes required. It is automatically managed:
-- **+1** when a node is enrolled
-- **-1** when a node is revoked
-- Can also be manually set via `POST /registry/threshold/propose`
-- During verification, `threshold` must be ≤ the number of active nodes
-
 ### Endpoints
 
 The `endpoints` object tells clients where to fetch the registry:
@@ -96,7 +87,7 @@ The `endpoints` object tells clients where to fetch the registry:
 The MPC policy fields control which cryptographic parameters are allowed for MPC ceremonies:
 - `allowedCurves` — list of allowed elliptic curves (e.g. `["secp256k1", "ed25519"]`)
 - `allowedProtocols` — list of allowed MPC protocols (e.g. `["cggmp21", "frost"]`)
-- `minThreshold` — minimum t-of-n threshold for MPC signing, must be >= 2
+- `threshold` — minimum t-of-n threshold for MPC signing, must be >= 2
 - All three fields are covered by the document hash and admin signatures, so changes require multi-sig approval
 - Can be updated via `POST /registry/mpc-policy/propose`
 
@@ -178,8 +169,8 @@ function checkStructure(doc: any): void {
   const required = [
     'registryId', 'version', 'issuedAt', 'expiresAt',
     'adminAddresses', 'nodes', 'merkleRoot',
-    'prevDocumentHash', 'documentHash', 'signatures', 'threshold',
-    'allowedCurves', 'allowedProtocols', 'minThreshold',
+    'prevDocumentHash', 'documentHash', 'signatures',
+    'allowedCurves', 'allowedProtocols', 'threshold',
   ];
   const missing = required.filter(f => doc[f] === undefined);
   if (missing.length) throw new Error(`Missing fields: ${missing.join(', ')}`);
@@ -214,10 +205,9 @@ function checkDocumentHash(doc: RegistryDocument): void {
     expiresAt:             doc.expiresAt,
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey,
-    threshold:             doc.threshold,
     allowedCurves:         doc.allowedCurves,
     allowedProtocols:      doc.allowedProtocols,
-    minThreshold:          doc.minThreshold,
+    threshold:             doc.threshold,
     endpoints:             doc.endpoints,
     nodes:                 doc.nodes,
     merkleRoot:            doc.merkleRoot,
@@ -284,10 +274,9 @@ const EIP712_TYPES = {
     { name: 'expiresAt',             type: 'uint256' },
     { name: 'adminAddresses',        type: 'address[]' },
     { name: 'backofficeServicePubkey', type: 'string' },
-    { name: 'threshold',             type: 'uint256' },
     { name: 'allowedCurves',         type: 'string[]' },
     { name: 'allowedProtocols',      type: 'string[]' },
-    { name: 'minThreshold',          type: 'uint256' },
+    { name: 'threshold',             type: 'uint256' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkleRoot',            type: 'string' },
@@ -309,10 +298,9 @@ function checkSignatures(doc: RegistryDocument): void {
     expiresAt:             doc.expiresAt,
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
-    threshold:             doc.threshold,
     allowedCurves:         doc.allowedCurves,
     allowedProtocols:      doc.allowedProtocols,
-    minThreshold:          doc.minThreshold,
+    threshold:             doc.threshold,
     endpoints:             doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
@@ -355,15 +343,7 @@ function checkSignatures(doc: RegistryDocument): void {
   }
 }
 
-// ── Step 6: Threshold check ──────────────────────────────────────────────────
-function checkThreshold(doc: RegistryDocument): void {
-  const activeCount = doc.nodes.filter(n => n.status === 'ACTIVE').length;
-  if (doc.threshold > activeCount) {
-    throw new Error(`Threshold (${doc.threshold}) exceeds active node count (${activeCount})`);
-  }
-}
-
-// ── Step 7: MPC Policy check ─────────────────────────────────────────────────
+// ── Step 6: MPC Policy check ─────────────────────────────────────────────────
 function checkMpcPolicy(doc: RegistryDocument): void {
   if (!Array.isArray(doc.allowedCurves) || doc.allowedCurves.length === 0) {
     throw new Error('allowedCurves must be a non-empty array');
@@ -371,12 +351,12 @@ function checkMpcPolicy(doc: RegistryDocument): void {
   if (!Array.isArray(doc.allowedProtocols) || doc.allowedProtocols.length === 0) {
     throw new Error('allowedProtocols must be a non-empty array');
   }
-  if (!Number.isInteger(doc.minThreshold) || doc.minThreshold < 2) {
-    throw new Error('minThreshold must be an integer >= 2');
+  if (!Number.isInteger(doc.threshold) || doc.threshold < 2) {
+    throw new Error('threshold must be an integer >= 2');
   }
 }
 
-// ── Step 8: Endpoints check ──────────────────────────────────────────────────
+// ── Step 7: Endpoints check ──────────────────────────────────────────────────
 function checkEndpoints(doc: RegistryDocument): void {
   if (!doc.endpoints) return; // endpoints are optional
 
@@ -405,7 +385,6 @@ function verifyRegistry(doc: RegistryDocument): void {
   checkDocumentHash(doc);
   checkMerkleRoot(doc);
   checkSignatures(doc);
-  checkThreshold(doc);
   checkMpcPolicy(doc);
   checkEndpoints(doc);
   // All checks passed — document is authentic and untampered
@@ -569,7 +548,7 @@ function checkHashChain(
 | **Rollback attack** | High-water mark tracking prevents serving old documents. |
 | **Expired registry** | Always check `expiresAt`. Refuse to use expired documents. |
 | **Man-in-the-middle** | HTTPS + EIP-712 signature verification. Endpoints are signed in the document. |
-| **Node key rotation** | When a node is revoked, its `status` changes to `REVOKED` and threshold decrements. Always filter for `ACTIVE` nodes. |
+| **Node key rotation** | When a node is revoked, its `status` changes to `REVOKED`. Always filter for `ACTIVE` nodes. |
 | **Endpoint tampering** | Endpoint URLs are covered by the document hash and admin signatures. Changing them requires multi-sig approval. |
 | **Insufficient quorum** | Threshold validation ensures you have enough active nodes before starting MPC ceremonies. |
 
@@ -584,8 +563,7 @@ Admin Addresses (hardcoded)
               ├── merkleRoot (integrity of individual nodes)
               ├── prevDocumentHash (chain to previous version)
               ├── backofficeServicePubkey (backoffice authentication)
-              ├── threshold (minimum node quorum)
-              ├── allowedCurves / allowedProtocols / minThreshold (MPC policy)
+              ├── allowedCurves / allowedProtocols / threshold (MPC policy)
               └── endpoints (primary + mirrors, signed discovery)
 ```
 
@@ -641,10 +619,9 @@ interface RegistryDocument {
   expiresAt:             number;
   adminAddresses:        string[];
   backofficeServicePubkey: string | null;
-  threshold:             number;
   allowedCurves:         string[];
   allowedProtocols:      string[];
-  minThreshold:          number;
+  threshold:             number;
   endpoints:             RegistryEndpoints | null;
   nodes:                 NodeRecord[];
   merkleRoot:            string;
@@ -676,13 +653,12 @@ interface HighWaterMark {
 | `DELETE` | `/api/registry/pending` | Delete pending draft |
 | `GET` | `/api/registry/pending/message` | Get EIP-712 payload for signing |
 | `POST` | `/api/registry/pending/sign` | Submit admin signature |
-| `POST` | `/api/registry/nodes/enroll` | Propose node enrollment (+1 threshold) |
-| `POST` | `/api/registry/nodes/revoke` | Propose node revocation (-1 threshold) |
+| `POST` | `/api/registry/nodes/enroll` | Propose node enrollment |
+| `POST` | `/api/registry/nodes/revoke` | Propose node revocation |
 | `POST` | `/api/registry/admins/propose` | Propose admin rotation |
 | `POST` | `/api/registry/backoffice-pubkey/propose` | Propose backoffice public key |
-| `POST` | `/api/registry/threshold/propose` | Propose threshold change |
-| `POST` | `/api/registry/mpc-policy/propose` | Propose MPC policy (curves, protocols, minThreshold) |
+| `POST` | `/api/registry/mpc-policy/propose` | Propose MPC policy (curves, protocols, threshold) |
 | `POST` | `/api/registry/endpoints/propose` | Propose endpoint URLs |
-| `POST` | `/api/registry/verify` | Verify a document (11-step pipeline) |
+| `POST` | `/api/registry/verify` | Verify a document (10-step pipeline) |
 | `POST` | `/api/registry/publish` | Publish signed document |
 | `GET` | `/api/registry/audit` | Get audit log |

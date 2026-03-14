@@ -6,7 +6,7 @@ import {
 import { RegistryService } from './registry.service'
 import {
   EnrollNodeDto, RevokeNodeDto, SignPendingDto,
-  ProposeAdminsDto, ProposeBackofficePubkeyDto, ProposeThresholdDto,
+  ProposeAdminsDto, ProposeBackofficePubkeyDto,
   ProposeEndpointsDto, ProposeMpcPolicyDto, VerifyDocumentDto, PublishDocumentDto
 } from './dto'
 
@@ -63,10 +63,6 @@ export class RegistryController {
   @Post('backoffice-pubkey/propose')
   @HttpCode(HttpStatus.OK)
   proposeBackofficePubkey(@Body() body: ProposeBackofficePubkeyDto) { return this.svc.proposeBackofficePubkey(body) }
-
-  @Post('threshold/propose')
-  @HttpCode(HttpStatus.OK)
-  proposeThreshold(@Body() body: ProposeThresholdDto) { return this.svc.proposeThreshold(body) }
 
   @Post('mpc-policy/propose')
   @HttpCode(HttpStatus.OK)
