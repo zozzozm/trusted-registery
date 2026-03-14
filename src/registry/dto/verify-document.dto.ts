@@ -69,6 +69,17 @@ export class VerifyDocumentDto {
   @IsNumber()
   threshold: number
 
+  @IsArray()
+  @IsString({ each: true })
+  allowedCurves: string[]
+
+  @IsArray()
+  @IsString({ each: true })
+  allowedProtocols: string[]
+
+  @IsNumber()
+  minThreshold: number
+
   @IsOptional()
   @ValidateNested()
   @Type(() => EndpointsDto)

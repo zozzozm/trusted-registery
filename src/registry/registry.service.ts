@@ -206,6 +206,39 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
+  /** POST /registry/mpc-policy/propose — propose MPC policy (curves, protocols, minThreshold) */
+  proposeMpcPolicy(body: { allowedCurves: string[]; allowedProtocols: string[]; minThreshold: number }): RegistryDocument {
+    if (this.draftLocked) {
+      throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
+    }
+
+    const { allowedCurves, allowedProtocols, minThreshold } = body
+    if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
+      throw new BadRequestException('allowedCurves must be a non-empty array')
+    }
+    if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
+      throw new BadRequestException('allowedProtocols must be a non-empty array')
+    }
+    if (!Number.isInteger(minThreshold) || minThreshold < 2) {
+      throw new BadRequestException('minThreshold must be an integer >= 2')
+    }
+
+    // Auto-create draft if none exists
+    if (!this.stagedDraft) {
+      const nodes = this.currentDoc ? [...this.currentDoc.nodes] : []
+      const base = this._buildDraft(nodes)
+      this.stagedDraft = { ...base, signatures: [] }
+    }
+
+    this.stagedDraft.allowedCurves = allowedCurves
+    this.stagedDraft.allowedProtocols = allowedProtocols
+    this.stagedDraft.minThreshold = minThreshold
+    this._refreshDraftHash()
+
+    this.audit('MPC_POLICY_PROPOSED', { allowedCurves, allowedProtocols, minThreshold })
+    return this.stagedDraft
+  }
+
   /** POST /registry/endpoints/propose — propose registry endpoints */
   proposeEndpoints(body: { primary: string; mirrors?: string[] }): RegistryDocument {
     if (this.draftLocked) {
@@ -299,7 +332,7 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash','threshold']
+    const requiredFields = ['registryId','version','issuedAt','expiresAt','adminAddresses','nodes','merkleRoot','prevDocumentHash','documentHash','threshold','allowedCurves','allowedProtocols','minThreshold']
     const missing  = requiredFields.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
@@ -332,6 +365,9 @@ export class RegistryService implements OnModuleInit {
       adminAddresses:        doc.adminAddresses,
       backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
       threshold:             doc.threshold ?? 0,
+      allowedCurves:         doc.allowedCurves ?? [],
+      allowedProtocols:      doc.allowedProtocols ?? [],
+      minThreshold:          doc.minThreshold ?? 2,
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkleRoot:            doc.merkleRoot,
@@ -411,7 +447,21 @@ export class RegistryService implements OnModuleInit {
       pass('threshold', `Threshold ${threshold} <= ${activeNodes} active nodes`)
     }
 
-    // Step 10 — Endpoints validation
+    // Step 10 — MPC policy validation
+    const allowedCurves = doc.allowedCurves ?? []
+    const allowedProtocols = doc.allowedProtocols ?? []
+    const minThreshold = doc.minThreshold ?? 2
+    if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
+      fail('mpcPolicy', 'allowedCurves must be a non-empty array')
+    } else if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
+      fail('mpcPolicy', 'allowedProtocols must be a non-empty array')
+    } else if (!Number.isInteger(minThreshold) || minThreshold < 2) {
+      fail('mpcPolicy', 'minThreshold must be an integer >= 2')
+    } else {
+      pass('mpcPolicy', `Curves: [${allowedCurves.join(', ')}], Protocols: [${allowedProtocols.join(', ')}], minThreshold: ${minThreshold}`)
+    }
+
+    // Step 11 — Endpoints validation
     const endpoints = doc.endpoints ?? null
     if (endpoints) {
       const urlPattern = /^https?:\/\/.+/
@@ -546,6 +596,9 @@ export class RegistryService implements OnModuleInit {
       adminAddresses:        doc.adminAddresses,
       backofficeServicePubkey: doc.backofficeServicePubkey ?? null,
       threshold:             doc.threshold ?? 0,
+      allowedCurves:         doc.allowedCurves ?? [],
+      allowedProtocols:      doc.allowedProtocols ?? [],
+      minThreshold:          doc.minThreshold ?? 2,
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkleRoot:            doc.merkleRoot,
@@ -593,6 +646,9 @@ export class RegistryService implements OnModuleInit {
       adminAddresses:        admins,
       backofficeServicePubkey: this.currentDoc?.backofficeServicePubkey ?? null,
       threshold:             this.currentDoc?.threshold ?? 0,
+      allowedCurves:         this.currentDoc?.allowedCurves ?? ['secp256k1', 'ed25519'],
+      allowedProtocols:      this.currentDoc?.allowedProtocols ?? ['cggmp21', 'frost'],
+      minThreshold:          this.currentDoc?.minThreshold ?? 2,
       endpoints:             this.currentDoc?.endpoints ?? null,
       nodes:                 sorted,
       merkleRoot:            computeMerkleRoot(sorted),
