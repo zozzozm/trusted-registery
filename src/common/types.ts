@@ -29,10 +29,9 @@ export interface RegistryDocument {
   expiresAt:             number
   adminAddresses:        string[]
   backofficeServicePubkey: string | null
-  threshold:             number
   allowedCurves:         string[]
   allowedProtocols:      string[]
-  minThreshold:          number
+  threshold:             number
   endpoints:             RegistryEndpoints | null
   nodes:                 NodeRecord[]
   merkleRoot:            string

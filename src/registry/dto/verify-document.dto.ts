@@ -66,9 +66,6 @@ export class VerifyDocumentDto {
   @IsString()
   backofficeServicePubkey: string | null
 
-  @IsNumber()
-  threshold: number
-
   @IsArray()
   @IsString({ each: true })
   allowedCurves: string[]
@@ -78,7 +75,7 @@ export class VerifyDocumentDto {
   allowedProtocols: string[]
 
   @IsNumber()
-  minThreshold: number
+  threshold: number
 
   @IsOptional()
   @ValidateNested()

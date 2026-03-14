@@ -90,8 +90,6 @@
         <div class="value" id="cur-nodes"></div>
         <label style="margin-top:0.5rem;">Admin Addresses</label>
         <div class="value" id="cur-admins"></div>
-        <label style="margin-top:0.5rem;">Threshold</label>
-        <div class="value" id="cur-threshold"></div>
         <label style="margin-top:0.5rem;">MPC Policy</label>
         <div class="value" id="cur-mpc-policy"></div>
         <label style="margin-top:0.5rem;">Endpoints</label>
@@ -113,8 +111,6 @@
         <div class="value" id="mgmt-draft-version"></div>
         <label style="margin-top:0.5rem;">Nodes</label>
         <div class="value" id="mgmt-draft-nodes"></div>
-        <label style="margin-top:0.5rem;">Threshold</label>
-        <div class="value" id="mgmt-draft-threshold"></div>
         <label style="margin-top:0.5rem;">MPC Policy</label>
         <div class="value" id="mgmt-draft-mpc-policy"></div>
         <label style="margin-top:0.5rem;">Endpoints</label>
@@ -207,8 +203,8 @@
         <input id="propose-protocols" placeholder="cggmp21, frost" value="cggmp21, frost">
       </div>
       <div class="form-group">
-        <label>Min Threshold</label>
-        <input id="propose-min-threshold" type="number" min="2" value="2">
+        <label>Threshold (min signers required)</label>
+        <input id="propose-threshold" type="number" min="2" value="2">
       </div>
       <button class="secondary" onclick="loadCurrentMpcPolicy()">Load Current</button>
       <button class="purple" onclick="proposeMpcPolicy()">Propose Policy</button>
@@ -261,8 +257,6 @@
         <div class="value" id="draft-nodes-count"></div>
         <label style="margin-top:0.5rem;">Admins</label>
         <div class="value" id="draft-admins"></div>
-        <label style="margin-top:0.5rem;">Threshold</label>
-        <div class="value" id="draft-threshold"></div>
         <label style="margin-top:0.5rem;">MPC Policy</label>
         <div class="value" id="draft-mpc-policy"></div>
         <label style="margin-top:0.5rem;">Endpoints</label>
@@ -376,7 +370,6 @@
         const doc = await res.json()
         document.getElementById('cur-version').textContent = 'v' + doc.version
         document.getElementById('cur-nodes').textContent = doc.nodes.length + ' (' + doc.nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
-        document.getElementById('cur-threshold').textContent = doc.threshold ?? 0
         document.getElementById('cur-mpc-policy').innerHTML = renderMpcPolicy(doc)
         document.getElementById('cur-endpoints').innerHTML = renderEndpoints(doc.endpoints)
         document.getElementById('cur-admins').innerHTML = doc.adminAddresses.map(a =>
@@ -434,7 +427,6 @@
       if (!draft) return
       document.getElementById('mgmt-draft-version').textContent = 'v' + draft.version
       document.getElementById('mgmt-draft-nodes').textContent = draft.nodes.length + ' node(s)'
-      document.getElementById('mgmt-draft-threshold').textContent = draft.threshold ?? 0
       document.getElementById('mgmt-draft-mpc-policy').innerHTML = renderMpcPolicy(draft)
       document.getElementById('mgmt-draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
       document.getElementById('mgmt-draft-hash').textContent = draft.documentHash
@@ -532,7 +524,6 @@
         document.getElementById('draft-admins').innerHTML = draft.adminAddresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
-        document.getElementById('draft-threshold').textContent = draft.threshold ?? 0
         document.getElementById('draft-mpc-policy').innerHTML = renderMpcPolicy(draft)
         document.getElementById('draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
         document.getElementById('draft-hash').textContent = draft.documentHash
@@ -733,10 +724,10 @@
     function renderMpcPolicy(doc) {
       const curves = doc.allowedCurves || []
       const protocols = doc.allowedProtocols || []
-      const mt = doc.minThreshold ?? 2
+      const t = doc.threshold ?? 2
       return `<div style="font-size:0.8rem;">Curves: [${curves.join(', ')}]</div>` +
              `<div style="font-size:0.8rem;">Protocols: [${protocols.join(', ')}]</div>` +
-             `<div style="font-size:0.8rem;">Min Threshold: ${mt}</div>`
+             `<div style="font-size:0.8rem;">Threshold: ${t}</div>`
     }
 
     async function loadCurrentMpcPolicy() {
@@ -746,7 +737,7 @@
         const doc = await res.json()
         document.getElementById('propose-curves').value = (doc.allowedCurves || []).join(', ')
         document.getElementById('propose-protocols').value = (doc.allowedProtocols || []).join(', ')
-        document.getElementById('propose-min-threshold').value = doc.minThreshold ?? 2
+        document.getElementById('propose-threshold').value = doc.threshold ?? 2
         showMsg('mpc-policy-msg', 'Loaded current MPC policy', true)
       } catch (e) { showMsg('mpc-policy-msg', e.message, false) }
     }
@@ -754,18 +745,18 @@
     async function proposeMpcPolicy() {
       const allowedCurves = document.getElementById('propose-curves').value.split(',').map(s => s.trim()).filter(Boolean)
       const allowedProtocols = document.getElementById('propose-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
-      const minThreshold = parseInt(document.getElementById('propose-min-threshold').value, 10)
+      const threshold = parseInt(document.getElementById('propose-threshold').value, 10)
       if (!allowedCurves.length || !allowedProtocols.length) {
         showMsg('mpc-policy-msg', 'Curves and protocols are required', false); return
       }
-      if (isNaN(minThreshold) || minThreshold < 2) {
-        showMsg('mpc-policy-msg', 'Min threshold must be >= 2', false); return
+      if (isNaN(threshold) || threshold < 2) {
+        showMsg('mpc-policy-msg', 'Threshold must be >= 2', false); return
       }
       try {
         const res = await fetch(`${API}/mpc-policy/propose`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ allowedCurves, allowedProtocols, minThreshold }),
+          body: JSON.stringify({ allowedCurves, allowedProtocols, threshold }),
         })
         const result = await res.json()
         if (res.ok) {

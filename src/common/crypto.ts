@@ -95,10 +95,9 @@ export const EIP712_TYPES = {
     { name: 'expiresAt',             type: 'uint256' },
     { name: 'adminAddresses',        type: 'address[]' },
     { name: 'backofficeServicePubkey', type: 'string' },
-    { name: 'threshold',             type: 'uint256' },
     { name: 'allowedCurves',         type: 'string[]' },
     { name: 'allowedProtocols',      type: 'string[]' },
-    { name: 'minThreshold',          type: 'uint256' },
+    { name: 'threshold',             type: 'uint256' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkleRoot',            type: 'string' },
@@ -114,10 +113,9 @@ type DocForSigning = {
   expiresAt: number
   adminAddresses: string[]
   backofficeServicePubkey: string | null
-  threshold: number
   allowedCurves: string[]
   allowedProtocols: string[]
-  minThreshold: number
+  threshold: number
   endpoints: RegistryEndpoints | null
   nodes: NodeRecord[]
   merkleRoot: string
@@ -137,10 +135,9 @@ export function buildTypedDataValue(doc: DocForSigning) {
     expiresAt:             doc.expiresAt,
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
-    threshold:             doc.threshold,
     allowedCurves:         doc.allowedCurves,
     allowedProtocols:      doc.allowedProtocols,
-    minThreshold:          doc.minThreshold,
+    threshold:             doc.threshold,
     endpoints:             doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
@@ -215,10 +212,9 @@ export function verifyMultiSig(
     expiresAt: number
     adminAddresses: string[]
     backofficeServicePubkey: string | null
-    threshold: number
     allowedCurves: string[]
     allowedProtocols: string[]
-    minThreshold: number
+    threshold: number
     endpoints: RegistryEndpoints | null
     nodes: NodeRecord[]
     merkleRoot: string
