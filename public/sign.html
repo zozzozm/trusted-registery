@@ -432,6 +432,36 @@
       document.getElementById('mgmt-draft-hash').textContent = draft.document_hash
       document.getElementById('mgmt-draft-sigs').textContent = draft.signatures.length + '/' + minSignatures
       document.getElementById('manage-draft-info').classList.remove('hidden')
+      populateFormsFromDraft()
+    }
+
+    function populateFormsFromDraft() {
+      if (!draft) return
+      // Admin addresses
+      const adminContainer = document.getElementById('admin-inputs')
+      adminContainer.innerHTML = ''
+      draft.admin_addresses.forEach((addr, i) => {
+        const div = document.createElement('div')
+        div.className = 'form-group'
+        div.innerHTML = `<label>Admin ${i}</label><input class="admin-addr-input" placeholder="0x..." value="${addr}">`
+        adminContainer.appendChild(div)
+      })
+      // MPC Policy
+      document.getElementById('propose-curves').value = (draft.allowed_curves || []).join(', ')
+      document.getElementById('propose-protocols').value = (draft.allowed_protocols || []).join(', ')
+      document.getElementById('propose-admin-quorum').value = draft.admin_quorum ?? 2
+      // Endpoints
+      document.getElementById('propose-primary-url').value = draft.endpoints?.primary || ''
+      const mirrorContainer = document.getElementById('mirror-inputs')
+      mirrorContainer.innerHTML = ''
+      const mirrors = draft.endpoints?.mirrors || ['']
+      if (mirrors.length === 0) mirrors.push('')
+      mirrors.forEach((m, i) => {
+        const div = document.createElement('div')
+        div.className = 'form-group'
+        div.innerHTML = `<label>Mirror ${i}</label><input class="mirror-url-input" placeholder="https://..." value="${m}">`
+        mirrorContainer.appendChild(div)
+      })
     }
 
     // ── Enroll ────────────────────────────────────────────────────────────

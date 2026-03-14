@@ -13,19 +13,19 @@ function main() {
   const doc  = JSON.parse(readFileSync(file, 'utf-8'))
 
   console.log(`Verifying ${file}`)
-  console.log(`  Registry: ${doc.registryId}`)
+  console.log(`  Registry: ${doc.registry_id}`)
   console.log(`  Version:  ${doc.version}`)
   console.log(`  Nodes:    ${doc.nodes?.length ?? 0}`)
-  console.log(`  Admins:   ${doc.adminAddresses?.length ?? 0}`)
+  console.log(`  Admins:   ${doc.admin_addresses?.length ?? 0}`)
 
   // Check registry ID
-  if (doc.registryId !== CONFIG.REGISTRY_ID) {
-    console.error(`Registry ID mismatch: ${doc.registryId} !== ${CONFIG.REGISTRY_ID}`)
+  if (doc.registry_id !== CONFIG.REGISTRY_ID) {
+    console.error(`Registry ID mismatch: ${doc.registry_id} !== ${CONFIG.REGISTRY_ID}`)
     process.exit(1)
   }
 
   // Check admin addresses exist
-  if (!doc.adminAddresses || doc.adminAddresses.length < CONFIG.MIN_SIGNATURES) {
+  if (!doc.admin_addresses || doc.admin_addresses.length < CONFIG.MIN_SIGNATURES) {
     console.error(`Need at least ${CONFIG.MIN_SIGNATURES} admin addresses in document`)
     process.exit(1)
   }
@@ -33,7 +33,7 @@ function main() {
   // If genesis env vars are set, verify the document's admin addresses match
   const genesisAddrs = CONFIG.GENESIS_ADMIN_ADDRESSES
   if (genesisAddrs.length > 0 && doc.version === 1) {
-    const docAddrs = new Set(doc.adminAddresses.map((a: string) => a.toLowerCase()))
+    const docAddrs = new Set(doc.admin_addresses.map((a: string) => a.toLowerCase()))
     const envAddrs = new Set(genesisAddrs.map(a => a.toLowerCase()))
     const allMatch = [...envAddrs].every(a => docAddrs.has(a))
     if (!allMatch) {
@@ -45,14 +45,14 @@ function main() {
 
   // Check expiry
   const now = Math.floor(Date.now() / 1000)
-  if (now > doc.expiresAt) {
+  if (now > doc.expires_at) {
     console.warn(`Document expired — renew it!`)
   }
 
   // Check document hash
-  const savedHash = doc.documentHash
+  const savedHash = doc.document_hash
   const { signatures: _, ...body } = doc
-  body.documentHash = ''
+  body.document_hash = ''
   const expected = computeDocumentHash(body)
   if (expected !== savedHash) {
     console.error(`Document hash mismatch`)
@@ -63,15 +63,15 @@ function main() {
   // For genesis, this is self-consistent. For later versions, the CI should
   // ideally verify the full chain, but for simplicity we trust the document's
   // admin addresses (they are protected by the hash chain from genesis).
-  body.documentHash = savedHash
-  const result = verifyMultiSig(body, doc.signatures, doc.adminAddresses, CONFIG.MIN_SIGNATURES)
+  body.document_hash = savedHash
+  const result = verifyMultiSig(body, doc.signatures, doc.admin_addresses, CONFIG.MIN_SIGNATURES)
   if (!result.valid) {
     console.error(`Signatures invalid: ${result.reason}`)
     process.exit(1)
   }
 
   console.log(`Document is valid — ${doc.signatures.length} admin signatures verified`)
-  console.log(`  Admin addresses: ${doc.adminAddresses.join(', ')}`)
+  console.log(`  Admin addresses: ${doc.admin_addresses.join(', ')}`)
 }
 
 main()
