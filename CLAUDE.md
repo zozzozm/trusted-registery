@@ -29,9 +29,9 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 ### Core Flow
 
 1. **Propose changes** — `POST /nodes/enroll` or `/nodes/revoke` creates/modifies a staged draft in memory
-2. **Configure document** — `POST /admins/propose`, `/backoffice-pubkey/propose`, `/threshold/propose`, `/endpoints/propose` modify draft metadata
+2. **Configure document** — `POST /admins/propose`, `/backoffice-pubkey/propose`, `/threshold/propose`, `/mpc-policy/propose`, `/endpoints/propose` modify draft metadata
 3. **Sign draft** — `POST /pending/sign` adds an admin signature (or use `npm run sign` offline)
-4. **Publish** — `POST /publish` validates the fully-signed document through 10 verification steps and persists it
+4. **Publish** — `POST /publish` validates the fully-signed document through 11 verification steps and persists it
 
 ### Key Files
 
@@ -48,6 +48,7 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 - **Nodes**: `nodes[]` (NodeRecord with ikPub, ekPub, role, status)
 - **Backoffice**: `backofficeServicePubkey` (32-byte hex public key, nullable)
 - **Threshold**: `threshold` (auto-increments on enroll, auto-decrements on revoke, must be <= active node count)
+- **MPC Policy**: `allowedCurves` (e.g. secp256k1, ed25519), `allowedProtocols` (e.g. cggmp21, frost), `minThreshold` (>= 2)
 - **Endpoints**: `endpoints` (nullable object with `primary` URL, `mirrors[]` URLs, `updated_at` timestamp)
 - **Integrity**: `merkleRoot`, `prevDocumentHash`, `documentHash`
 - **Auth**: `signatures[]` (EIP-712 typed data signatures)
@@ -70,7 +71,8 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 7. Multi-sig — 2-of-3 EIP-712 admin signatures
 8. Admin addresses — minimum count validation
 9. Threshold — must be <= active node count
-10. Endpoints — URL format validation, no duplicates
+10. MPC Policy — allowedCurves/allowedProtocols non-empty, minThreshold >= 2
+11. Endpoints — URL format validation, no duplicates
 
 ### Testing
 

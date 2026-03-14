@@ -1,8 +1,8 @@
 {
   "registryId": "dev-custody-v1",
-  "version": 7,
-  "issuedAt": 1773359842,
-  "expiresAt": 1773964642,
+  "version": 8,
+  "issuedAt": 1773493954,
+  "expiresAt": 1774098754,
   "adminAddresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
@@ -10,6 +10,15 @@
   ],
   "backofficeServicePubkey": null,
   "threshold": 0,
+  "allowedCurves": [
+    "secp256k1",
+    "ed25519"
+  ],
+  "allowedProtocols": [
+    "cggmp21",
+    "frost"
+  ],
+  "minThreshold": 2,
   "endpoints": {
     "primary": "https://raw.githubusercontent.com/zozzozm/trusted-registery/refs/heads/main/data/registry.json",
     "mirrors": [],
@@ -26,16 +35,16 @@
     }
   ],
   "merkleRoot": "22a7d47c7eb59907e68554332e98ff5c1289d65aef9b67a6890946c18ad416d0",
-  "prevDocumentHash": "ba99642569170e8264f27803674093d6815dce10c63c2507f4d52f0f4c7bffd1",
-  "documentHash": "abb1133f3949c67fd62f3a9f4f15dfd5f7e895cf882631fa8f4ff15ddc99dd6d",
+  "prevDocumentHash": "abb1133f3949c67fd62f3a9f4f15dfd5f7e895cf882631fa8f4ff15ddc99dd6d",
+  "documentHash": "33688f488953dd465ed76cf5394b9a50f8ae3d30850eadc89ef5db6523119cb4",
   "signatures": [
     {
-      "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
-      "signature": "0xd4bbea0b5fdf62b33983c91e6abc682f3b75d02d025bab82279fcad86a5ba88504e1a9bf2bf4e3cae03d7609ed0060315a2165ec2631892294388af84a8af2261c"
+      "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
+      "signature": "0x7919fd35675f69b09041455a005abda8eb9a3d7f58dea41593679fdf63d6376a614d1f1805aab1e6c13457ebe2a4f4b8a267c90170b90c0a070edc4b55ce62161c"
     },
     {
-      "adminAddress": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
-      "signature": "0xf4253981e0b9a32758526ab018b32594e3479df6eacb1a6186cd84bbbada1751688d2b0e2255e783586fccb99a998400d3159078505fc429682db8534855d1091c"
+      "adminAddress": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
+      "signature": "0x83bee5306343e9ce21bce2066aa9254ad6de9eefe2b41592f5869a9a09e4e26c3a7f7bc96fe8dbad4228b06d39d0e710b600d77bf9ce90d1b112e4291bae53531b"
     }
   ]
 }

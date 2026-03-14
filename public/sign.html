@@ -92,6 +92,8 @@
         <div class="value" id="cur-admins"></div>
         <label style="margin-top:0.5rem;">Threshold</label>
         <div class="value" id="cur-threshold"></div>
+        <label style="margin-top:0.5rem;">MPC Policy</label>
+        <div class="value" id="cur-mpc-policy"></div>
         <label style="margin-top:0.5rem;">Endpoints</label>
         <div class="value" id="cur-endpoints"></div>
         <label style="margin-top:0.5rem;">Expires</label>
@@ -113,6 +115,8 @@
         <div class="value" id="mgmt-draft-nodes"></div>
         <label style="margin-top:0.5rem;">Threshold</label>
         <div class="value" id="mgmt-draft-threshold"></div>
+        <label style="margin-top:0.5rem;">MPC Policy</label>
+        <div class="value" id="mgmt-draft-mpc-policy"></div>
         <label style="margin-top:0.5rem;">Endpoints</label>
         <div class="value" id="mgmt-draft-endpoints"></div>
         <label style="margin-top:0.5rem;">Document Hash</label>
@@ -188,6 +192,29 @@
       <div id="admin-msg"></div>
     </div>
 
+    <!-- MPC Policy -->
+    <div class="section">
+      <h2>MPC Policy</h2>
+      <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+        Configure allowed elliptic curves, MPC protocols, and minimum threshold for signing ceremonies.
+      </p>
+      <div class="form-group">
+        <label>Allowed Curves (comma-separated)</label>
+        <input id="propose-curves" placeholder="secp256k1, ed25519" value="secp256k1, ed25519">
+      </div>
+      <div class="form-group">
+        <label>Allowed Protocols (comma-separated)</label>
+        <input id="propose-protocols" placeholder="cggmp21, frost" value="cggmp21, frost">
+      </div>
+      <div class="form-group">
+        <label>Min Threshold</label>
+        <input id="propose-min-threshold" type="number" min="2" value="2">
+      </div>
+      <button class="secondary" onclick="loadCurrentMpcPolicy()">Load Current</button>
+      <button class="purple" onclick="proposeMpcPolicy()">Propose Policy</button>
+      <div id="mpc-policy-msg"></div>
+    </div>
+
     <!-- Configure Endpoints -->
     <div class="section">
       <h2>Registry Endpoints</h2>
@@ -236,6 +263,8 @@
         <div class="value" id="draft-admins"></div>
         <label style="margin-top:0.5rem;">Threshold</label>
         <div class="value" id="draft-threshold"></div>
+        <label style="margin-top:0.5rem;">MPC Policy</label>
+        <div class="value" id="draft-mpc-policy"></div>
         <label style="margin-top:0.5rem;">Endpoints</label>
         <div class="value" id="draft-endpoints"></div>
         <label style="margin-top:0.5rem;">Document Hash</label>
@@ -348,6 +377,7 @@
         document.getElementById('cur-version').textContent = 'v' + doc.version
         document.getElementById('cur-nodes').textContent = doc.nodes.length + ' (' + doc.nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
         document.getElementById('cur-threshold').textContent = doc.threshold ?? 0
+        document.getElementById('cur-mpc-policy').innerHTML = renderMpcPolicy(doc)
         document.getElementById('cur-endpoints').innerHTML = renderEndpoints(doc.endpoints)
         document.getElementById('cur-admins').innerHTML = doc.adminAddresses.map(a =>
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
@@ -405,6 +435,7 @@
       document.getElementById('mgmt-draft-version').textContent = 'v' + draft.version
       document.getElementById('mgmt-draft-nodes').textContent = draft.nodes.length + ' node(s)'
       document.getElementById('mgmt-draft-threshold').textContent = draft.threshold ?? 0
+      document.getElementById('mgmt-draft-mpc-policy').innerHTML = renderMpcPolicy(draft)
       document.getElementById('mgmt-draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
       document.getElementById('mgmt-draft-hash').textContent = draft.documentHash
       document.getElementById('mgmt-draft-sigs').textContent = draft.signatures.length + '/' + minSignatures
@@ -502,6 +533,7 @@
           `<div class="mono" style="font-size:0.8rem;">${a}</div>`
         ).join('')
         document.getElementById('draft-threshold').textContent = draft.threshold ?? 0
+        document.getElementById('draft-mpc-policy').innerHTML = renderMpcPolicy(draft)
         document.getElementById('draft-endpoints').innerHTML = renderEndpoints(draft.endpoints)
         document.getElementById('draft-hash').textContent = draft.documentHash
         document.getElementById('draft-merkle').textContent = draft.merkleRoot
@@ -695,6 +727,55 @@
           showMsg('admin-msg', result.message || 'Failed', false)
         }
       } catch (e) { showMsg('admin-msg', e.message, false) }
+    }
+
+    // ── MPC Policy ─────────────────────────────────────────────────────────
+    function renderMpcPolicy(doc) {
+      const curves = doc.allowedCurves || []
+      const protocols = doc.allowedProtocols || []
+      const mt = doc.minThreshold ?? 2
+      return `<div style="font-size:0.8rem;">Curves: [${curves.join(', ')}]</div>` +
+             `<div style="font-size:0.8rem;">Protocols: [${protocols.join(', ')}]</div>` +
+             `<div style="font-size:0.8rem;">Min Threshold: ${mt}</div>`
+    }
+
+    async function loadCurrentMpcPolicy() {
+      try {
+        const res = await fetch(`${API}/current`)
+        if (!res.ok) { showMsg('mpc-policy-msg', 'No current registry', false); return }
+        const doc = await res.json()
+        document.getElementById('propose-curves').value = (doc.allowedCurves || []).join(', ')
+        document.getElementById('propose-protocols').value = (doc.allowedProtocols || []).join(', ')
+        document.getElementById('propose-min-threshold').value = doc.minThreshold ?? 2
+        showMsg('mpc-policy-msg', 'Loaded current MPC policy', true)
+      } catch (e) { showMsg('mpc-policy-msg', e.message, false) }
+    }
+
+    async function proposeMpcPolicy() {
+      const allowedCurves = document.getElementById('propose-curves').value.split(',').map(s => s.trim()).filter(Boolean)
+      const allowedProtocols = document.getElementById('propose-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
+      const minThreshold = parseInt(document.getElementById('propose-min-threshold').value, 10)
+      if (!allowedCurves.length || !allowedProtocols.length) {
+        showMsg('mpc-policy-msg', 'Curves and protocols are required', false); return
+      }
+      if (isNaN(minThreshold) || minThreshold < 2) {
+        showMsg('mpc-policy-msg', 'Min threshold must be >= 2', false); return
+      }
+      try {
+        const res = await fetch(`${API}/mpc-policy/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ allowedCurves, allowedProtocols, minThreshold }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('mpc-policy-msg', 'MPC policy proposed! Draft created (v' + result.version + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('mpc-policy-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('mpc-policy-msg', e.message, false) }
     }
 
     // ── Endpoints Proposal ─────────────────────────────────────────────────

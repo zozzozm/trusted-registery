@@ -37,6 +37,9 @@ The `registry.json` file contains a single `RegistryDocument`:
   "adminAddresses":   ["0xAbc...", "0xDef...", "0x123..."],  // Ethereum addresses of admins
   "backofficeServicePubkey": "64-hex-chars...", // backoffice service public key (or null)
   "threshold":        2,                        // minimum node count for MPC ceremonies (auto-managed)
+  "allowedCurves":    ["secp256k1", "ed25519"], // elliptic curves allowed for MPC key generation
+  "allowedProtocols": ["cggmp21", "frost"],     // MPC protocols allowed for signing ceremonies
+  "minThreshold":     2,                        // minimum t-of-n threshold for MPC signing (>= 2)
   "endpoints": {                                // where clients can fetch registry updates (or null)
     "primary":    "https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json",
     "mirrors":    ["https://mirror-1.custody.internal/registry.json"],
@@ -87,6 +90,15 @@ The `endpoints` object tells clients where to fetch the registry:
 - `mirrors` — fallback URLs for redundancy
 - `updated_at` — ISO timestamp of when endpoints were last configured
 - The entire `endpoints` object is signed by the admins, so it cannot be tampered with
+
+### MPC Policy
+
+The MPC policy fields control which cryptographic parameters are allowed for MPC ceremonies:
+- `allowedCurves` — list of allowed elliptic curves (e.g. `["secp256k1", "ed25519"]`)
+- `allowedProtocols` — list of allowed MPC protocols (e.g. `["cggmp21", "frost"]`)
+- `minThreshold` — minimum t-of-n threshold for MPC signing, must be >= 2
+- All three fields are covered by the document hash and admin signatures, so changes require multi-sig approval
+- Can be updated via `POST /registry/mpc-policy/propose`
 
 ### Backoffice Service Public Key
 
@@ -167,6 +179,7 @@ function checkStructure(doc: any): void {
     'registryId', 'version', 'issuedAt', 'expiresAt',
     'adminAddresses', 'nodes', 'merkleRoot',
     'prevDocumentHash', 'documentHash', 'signatures', 'threshold',
+    'allowedCurves', 'allowedProtocols', 'minThreshold',
   ];
   const missing = required.filter(f => doc[f] === undefined);
   if (missing.length) throw new Error(`Missing fields: ${missing.join(', ')}`);
@@ -202,6 +215,9 @@ function checkDocumentHash(doc: RegistryDocument): void {
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey,
     threshold:             doc.threshold,
+    allowedCurves:         doc.allowedCurves,
+    allowedProtocols:      doc.allowedProtocols,
+    minThreshold:          doc.minThreshold,
     endpoints:             doc.endpoints,
     nodes:                 doc.nodes,
     merkleRoot:            doc.merkleRoot,
@@ -269,6 +285,9 @@ const EIP712_TYPES = {
     { name: 'adminAddresses',        type: 'address[]' },
     { name: 'backofficeServicePubkey', type: 'string' },
     { name: 'threshold',             type: 'uint256' },
+    { name: 'allowedCurves',         type: 'string[]' },
+    { name: 'allowedProtocols',      type: 'string[]' },
+    { name: 'minThreshold',          type: 'uint256' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkleRoot',            type: 'string' },
@@ -291,6 +310,9 @@ function checkSignatures(doc: RegistryDocument): void {
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
     threshold:             doc.threshold,
+    allowedCurves:         doc.allowedCurves,
+    allowedProtocols:      doc.allowedProtocols,
+    minThreshold:          doc.minThreshold,
     endpoints:             doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
@@ -341,7 +363,20 @@ function checkThreshold(doc: RegistryDocument): void {
   }
 }
 
-// ── Step 7: Endpoints check ──────────────────────────────────────────────────
+// ── Step 7: MPC Policy check ─────────────────────────────────────────────────
+function checkMpcPolicy(doc: RegistryDocument): void {
+  if (!Array.isArray(doc.allowedCurves) || doc.allowedCurves.length === 0) {
+    throw new Error('allowedCurves must be a non-empty array');
+  }
+  if (!Array.isArray(doc.allowedProtocols) || doc.allowedProtocols.length === 0) {
+    throw new Error('allowedProtocols must be a non-empty array');
+  }
+  if (!Number.isInteger(doc.minThreshold) || doc.minThreshold < 2) {
+    throw new Error('minThreshold must be an integer >= 2');
+  }
+}
+
+// ── Step 8: Endpoints check ──────────────────────────────────────────────────
 function checkEndpoints(doc: RegistryDocument): void {
   if (!doc.endpoints) return; // endpoints are optional
 
@@ -371,6 +406,7 @@ function verifyRegistry(doc: RegistryDocument): void {
   checkMerkleRoot(doc);
   checkSignatures(doc);
   checkThreshold(doc);
+  checkMpcPolicy(doc);
   checkEndpoints(doc);
   // All checks passed — document is authentic and untampered
 }
@@ -549,6 +585,7 @@ Admin Addresses (hardcoded)
               ├── prevDocumentHash (chain to previous version)
               ├── backofficeServicePubkey (backoffice authentication)
               ├── threshold (minimum node quorum)
+              ├── allowedCurves / allowedProtocols / minThreshold (MPC policy)
               └── endpoints (primary + mirrors, signed discovery)
 ```
 
@@ -605,6 +642,9 @@ interface RegistryDocument {
   adminAddresses:        string[];
   backofficeServicePubkey: string | null;
   threshold:             number;
+  allowedCurves:         string[];
+  allowedProtocols:      string[];
+  minThreshold:          number;
   endpoints:             RegistryEndpoints | null;
   nodes:                 NodeRecord[];
   merkleRoot:            string;
@@ -641,7 +681,8 @@ interface HighWaterMark {
 | `POST` | `/api/registry/admins/propose` | Propose admin rotation |
 | `POST` | `/api/registry/backoffice-pubkey/propose` | Propose backoffice public key |
 | `POST` | `/api/registry/threshold/propose` | Propose threshold change |
+| `POST` | `/api/registry/mpc-policy/propose` | Propose MPC policy (curves, protocols, minThreshold) |
 | `POST` | `/api/registry/endpoints/propose` | Propose endpoint URLs |
-| `POST` | `/api/registry/verify` | Verify a document (10-step pipeline) |
+| `POST` | `/api/registry/verify` | Verify a document (11-step pipeline) |
 | `POST` | `/api/registry/publish` | Publish signed document |
 | `GET` | `/api/registry/audit` | Get audit log |

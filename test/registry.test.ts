@@ -59,6 +59,9 @@ async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<Regi
     adminAddresses: adminAddresses(),
     backofficeServicePubkey: null,
     threshold: 0,
+    allowedCurves: ['secp256k1', 'ed25519'],
+    allowedProtocols: ['cggmp21', 'frost'],
+    minThreshold: 2,
     endpoints: null,
     nodes: [], merkleRoot: computeMerkleRoot([]),
     prevDocumentHash: null, documentHash: '',
@@ -101,6 +104,7 @@ describe('Verify — each failure case', () => {
       registryId: 'x', version: 1, issuedAt: 1, expiresAt: 1,
       adminAddresses: adminAddresses(),
       backofficeServicePubkey: null, threshold: 0,
+      allowedCurves: ['secp256k1', 'ed25519'], allowedProtocols: ['cggmp21', 'frost'], minThreshold: 2,
       endpoints: null,
       nodes: [], merkleRoot: 'x', prevDocumentHash: null, documentHash: 'x', signatures: []
     })
@@ -114,6 +118,9 @@ describe('Verify — each failure case', () => {
       adminAddresses: d.adminAddresses,
       backofficeServicePubkey: d.backofficeServicePubkey,
       threshold: d.threshold,
+      allowedCurves: d.allowedCurves,
+      allowedProtocols: d.allowedProtocols,
+      minThreshold: d.minThreshold,
       endpoints: d.endpoints,
       nodes: d.nodes, merkleRoot: d.merkleRoot,
       prevDocumentHash: d.prevDocumentHash, documentHash: '',

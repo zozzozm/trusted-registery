@@ -96,6 +96,9 @@ export const EIP712_TYPES = {
     { name: 'adminAddresses',        type: 'address[]' },
     { name: 'backofficeServicePubkey', type: 'string' },
     { name: 'threshold',             type: 'uint256' },
+    { name: 'allowedCurves',         type: 'string[]' },
+    { name: 'allowedProtocols',      type: 'string[]' },
+    { name: 'minThreshold',          type: 'uint256' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkleRoot',            type: 'string' },
@@ -112,6 +115,9 @@ type DocForSigning = {
   adminAddresses: string[]
   backofficeServicePubkey: string | null
   threshold: number
+  allowedCurves: string[]
+  allowedProtocols: string[]
+  minThreshold: number
   endpoints: RegistryEndpoints | null
   nodes: NodeRecord[]
   merkleRoot: string
@@ -132,6 +138,9 @@ export function buildTypedDataValue(doc: DocForSigning) {
     adminAddresses:        doc.adminAddresses,
     backofficeServicePubkey: doc.backofficeServicePubkey ?? '',
     threshold:             doc.threshold,
+    allowedCurves:         doc.allowedCurves,
+    allowedProtocols:      doc.allowedProtocols,
+    minThreshold:          doc.minThreshold,
     endpoints:             doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
@@ -207,6 +216,9 @@ export function verifyMultiSig(
     adminAddresses: string[]
     backofficeServicePubkey: string | null
     threshold: number
+    allowedCurves: string[]
+    allowedProtocols: string[]
+    minThreshold: number
     endpoints: RegistryEndpoints | null
     nodes: NodeRecord[]
     merkleRoot: string
