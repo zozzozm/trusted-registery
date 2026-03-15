@@ -36,7 +36,7 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 ### Key Files
 
 - `src/common/crypto.ts` — EIP-712 typed data signing/verification (ethers.js), SHA-256 hashing with deterministic JSON serialization (sorted keys), Merkle tree construction
-- `src/common/types.ts` — Core types: `RegistryDocument`, `NodeRecord`, `AdminSignature`, `UnsignedDocument`, `RegistryEndpoints`
+- `src/common/types.ts` — Core types: `RegistryDocument`, `NodeRecord`, `AdminSignature`, `UnsignedDocument`, `RegistryEndpoints`, `CeremonyBounds`
 - `src/common/config.ts` — Config from env vars; admin Ethereum addresses are the trust root
 - `src/registry/registry.service.ts` — All business logic: in-memory state (currentDoc, stagedDraft, auditLog), verification pipeline, disk persistence
 - `src/registry/registry.controller.ts` — REST endpoints mapping to service methods
@@ -47,7 +47,7 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 - **Admin**: `admin_addresses` (Ethereum addresses, 2-of-3 multi-sig)
 - **Nodes**: `nodes[]` (NodeRecord with `ik_pub`, `ek_pub`, `role`, `status`)
 - **Backoffice**: `backoffice_service_pubkey` (32-byte hex public key, nullable)
-- **MPC Policy**: `allowed_curves` (e.g. secp256k1, ed25519), `allowed_protocols` (e.g. cggmp21, frost), `admin_quorum` (minimum signers required, >= 2)
+- **Ceremony Bounds**: `ceremony_bounds` (nested object with `min_signing_threshold`, `max_signing_threshold`, `min_participants`, `max_participants`, `allowed_protocols`, `allowed_curves`)
 - **Endpoints**: `endpoints` (nullable object with `primary` URL, `mirrors[]` URLs, `updated_at` timestamp)
 - **Integrity**: `merkle_root`, `prev_document_hash`, `document_hash`
 - **Auth**: `signatures[]` (EIP-712 typed data signatures)
@@ -69,7 +69,7 @@ MPC Custody Node Registry — a NestJS server that manages a cryptographically s
 6. Hash chain — links to previous version
 7. Multi-sig — 2-of-3 EIP-712 admin signatures
 8. Admin addresses — minimum count validation
-9. MPC Policy — allowed_curves/allowed_protocols non-empty, admin_quorum >= 2
+9. Ceremony Bounds — min/max thresholds and participants valid, allowed_curves/allowed_protocols non-empty
 10. Endpoints — URL format validation, no duplicates
 
 ### Testing

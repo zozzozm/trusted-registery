@@ -22,6 +22,15 @@ export interface RegistryEndpoints {
   updated_at: string
 }
 
+export interface CeremonyBounds {
+  min_signing_threshold: number
+  max_signing_threshold: number
+  min_participants:      number
+  max_participants:      number
+  allowed_protocols:     string[]
+  allowed_curves:        string[]
+}
+
 export interface RegistryDocument {
   registry_id:            string
   version:               number
@@ -29,9 +38,7 @@ export interface RegistryDocument {
   expires_at:             number
   admin_addresses:        string[]
   backoffice_service_pubkey: string | null
-  allowed_curves:         string[]
-  allowed_protocols:      string[]
-  admin_quorum:             number
+  ceremony_bounds:       CeremonyBounds
   endpoints:             RegistryEndpoints | null
   nodes:                 NodeRecord[]
   merkle_root:            string

@@ -16,7 +16,7 @@ The MPC wallet needs to know **which nodes are legitimate** before participating
        │
        │  1. Fetch registry.json (primary URL or mirrors)
        │  2. Verify document integrity (hash, merkle, chain, signatures)
-       │  3. Check admin_quorum and endpoints
+       │  3. Check ceremony_bounds and endpoints
        │  4. Extract active nodes by role
        │  5. Use node keys (ik_pub, ek_pub) in MPC ceremonies
        │
@@ -36,9 +36,14 @@ The `registry.json` file contains a single `RegistryDocument`:
   "expires_at":        1712592000,               // unix timestamp (seconds)
   "admin_addresses":   ["0xAbc...", "0xDef...", "0x123..."],  // Ethereum addresses of admins
   "backoffice_service_pubkey": "64-hex-chars...", // backoffice service public key (or null)
-  "allowed_curves":    ["secp256k1", "ed25519"], // elliptic curves allowed for MPC key generation
-  "allowed_protocols": ["cggmp21", "frost"],     // MPC protocols allowed for signing ceremonies
-  "admin_quorum":      2,                        // minimum t-of-n threshold for MPC signing (>= 2)
+  "ceremony_bounds": {                           // MPC ceremony constraints (signed by admins)
+    "min_signing_threshold": 2,                  // minimum signers required (>= 2)
+    "max_signing_threshold": 9,                  // maximum signers allowed
+    "min_participants":      2,                  // minimum participants in ceremony (>= 2)
+    "max_participants":      9,                  // maximum participants in ceremony
+    "allowed_protocols":     ["cggmp21", "frost"],   // MPC protocols allowed
+    "allowed_curves":        ["secp256k1", "ed25519"] // elliptic curves allowed
+  },
   "endpoints": {                                 // where clients can fetch registry updates (or null)
     "primary":    "https://raw.githubusercontent.com/zozzozm/trusted-registery/main/data/registry.json",
     "mirrors":    ["https://mirror-1.custody.internal/registry.json"],
@@ -82,13 +87,14 @@ The `endpoints` object tells clients where to fetch the registry:
 - `updated_at` — ISO timestamp of when endpoints were last configured
 - The entire `endpoints` object is signed by the admins, so it cannot be tampered with
 
-### MPC Policy
+### Ceremony Bounds
 
-The MPC policy fields control which cryptographic parameters are allowed for MPC ceremonies:
-- `allowed_curves` — list of allowed elliptic curves (e.g. `["secp256k1", "ed25519"]`)
+The `ceremony_bounds` object controls which cryptographic parameters are allowed for MPC ceremonies:
+- `min_signing_threshold` / `max_signing_threshold` — range of allowed signing thresholds (min >= 2)
+- `min_participants` / `max_participants` — range of allowed ceremony participants (min >= 2)
 - `allowed_protocols` — list of allowed MPC protocols (e.g. `["cggmp21", "frost"]`)
-- `admin_quorum` — minimum t-of-n threshold for MPC signing, must be >= 2
-- All three fields are covered by the document hash and admin signatures, so changes require multi-sig approval
+- `allowed_curves` — list of allowed elliptic curves (e.g. `["secp256k1", "ed25519"]`)
+- The entire `ceremony_bounds` object is covered by the document hash and admin signatures, so changes require multi-sig approval
 - Can be updated via `POST /registry/mpc-policy/propose`
 
 ### Backoffice Service Public Key
@@ -170,7 +176,7 @@ function checkStructure(doc: any): void {
     'registry_id', 'version', 'issued_at', 'expires_at',
     'admin_addresses', 'nodes', 'merkle_root',
     'prev_document_hash', 'document_hash', 'signatures',
-    'allowed_curves', 'allowed_protocols', 'admin_quorum',
+    'ceremony_bounds',
   ];
   const missing = required.filter(f => doc[f] === undefined);
   if (missing.length) throw new Error(`Missing fields: ${missing.join(', ')}`);
@@ -205,9 +211,7 @@ function checkDocumentHash(doc: RegistryDocument): void {
     expires_at:             doc.expires_at,
     admin_addresses:        doc.admin_addresses,
     backoffice_service_pubkey: doc.backoffice_service_pubkey,
-    allowed_curves:         doc.allowed_curves,
-    allowed_protocols:      doc.allowed_protocols,
-    admin_quorum:           doc.admin_quorum,
+    ceremony_bounds:        doc.ceremony_bounds,
     endpoints:              doc.endpoints,
     nodes:                  doc.nodes,
     merkle_root:            doc.merkle_root,
@@ -267,6 +271,14 @@ const EIP712_TYPES = {
     { name: 'mirrors',    type: 'string[]' },
     { name: 'updated_at', type: 'string' },
   ],
+  CeremonyBounds: [
+    { name: 'min_signing_threshold', type: 'uint256' },
+    { name: 'max_signing_threshold', type: 'uint256' },
+    { name: 'min_participants',      type: 'uint256' },
+    { name: 'max_participants',      type: 'uint256' },
+    { name: 'allowed_protocols',     type: 'string[]' },
+    { name: 'allowed_curves',        type: 'string[]' },
+  ],
   RegistryDocument: [
     { name: 'registry_id',            type: 'string' },
     { name: 'version',                type: 'uint256' },
@@ -274,9 +286,7 @@ const EIP712_TYPES = {
     { name: 'expires_at',            type: 'uint256' },
     { name: 'admin_addresses',       type: 'address[]' },
     { name: 'backoffice_service_pubkey', type: 'string' },
-    { name: 'allowed_curves',        type: 'string[]' },
-    { name: 'allowed_protocols',     type: 'string[]' },
-    { name: 'admin_quorum',          type: 'uint256' },
+    { name: 'ceremony_bounds',       type: 'CeremonyBounds' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkle_root',           type: 'string' },
@@ -298,9 +308,14 @@ function checkSignatures(doc: RegistryDocument): void {
     expires_at:             doc.expires_at,
     admin_addresses:        doc.admin_addresses,
     backoffice_service_pubkey: doc.backoffice_service_pubkey ?? '',
-    allowed_curves:         doc.allowed_curves,
-    allowed_protocols:      doc.allowed_protocols,
-    admin_quorum:           doc.admin_quorum,
+    ceremony_bounds: {
+      min_signing_threshold: doc.ceremony_bounds.min_signing_threshold,
+      max_signing_threshold: doc.ceremony_bounds.max_signing_threshold,
+      min_participants:      doc.ceremony_bounds.min_participants,
+      max_participants:      doc.ceremony_bounds.max_participants,
+      allowed_protocols:     doc.ceremony_bounds.allowed_protocols,
+      allowed_curves:        doc.ceremony_bounds.allowed_curves,
+    },
     endpoints:              doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
@@ -343,16 +358,30 @@ function checkSignatures(doc: RegistryDocument): void {
   }
 }
 
-// ── Step 6: MPC Policy check ─────────────────────────────────────────────────
-function checkMpcPolicy(doc: RegistryDocument): void {
-  if (!Array.isArray(doc.allowed_curves) || doc.allowed_curves.length === 0) {
+// ── Step 6: Ceremony Bounds check ────────────────────────────────────────────
+function checkCeremonyBounds(doc: RegistryDocument): void {
+  const cb = doc.ceremony_bounds;
+  if (!cb) throw new Error('ceremony_bounds is required');
+  if (!Number.isInteger(cb.min_signing_threshold) || cb.min_signing_threshold < 2) {
+    throw new Error('min_signing_threshold must be >= 2');
+  }
+  if (cb.max_signing_threshold < cb.min_signing_threshold) {
+    throw new Error('max_signing_threshold must be >= min_signing_threshold');
+  }
+  if (!Number.isInteger(cb.min_participants) || cb.min_participants < 2) {
+    throw new Error('min_participants must be >= 2');
+  }
+  if (cb.max_participants < cb.min_participants) {
+    throw new Error('max_participants must be >= min_participants');
+  }
+  if (cb.min_signing_threshold > cb.max_participants) {
+    throw new Error('min_signing_threshold cannot exceed max_participants');
+  }
+  if (!Array.isArray(cb.allowed_curves) || cb.allowed_curves.length === 0) {
     throw new Error('allowed_curves must be a non-empty array');
   }
-  if (!Array.isArray(doc.allowed_protocols) || doc.allowed_protocols.length === 0) {
+  if (!Array.isArray(cb.allowed_protocols) || cb.allowed_protocols.length === 0) {
     throw new Error('allowed_protocols must be a non-empty array');
-  }
-  if (!Number.isInteger(doc.admin_quorum) || doc.admin_quorum < 2) {
-    throw new Error('admin_quorum must be an integer >= 2');
   }
 }
 
@@ -385,7 +414,7 @@ function verifyRegistry(doc: RegistryDocument): void {
   checkDocumentHash(doc);
   checkMerkleRoot(doc);
   checkSignatures(doc);
-  checkMpcPolicy(doc);
+  checkCeremonyBounds(doc);
   checkEndpoints(doc);
   // All checks passed — document is authentic and untampered
 }
@@ -421,7 +450,7 @@ function getNodesByRole(
 ```typescript
 function canStartCeremony(doc: RegistryDocument): boolean {
   const activeNodes = getActiveNodes(doc);
-  return activeNodes.length >= doc.admin_quorum;
+  return activeNodes.length >= doc.ceremony_bounds.min_participants;
 }
 ```
 
@@ -435,7 +464,7 @@ async function startSigningCeremony(txPayload: any) {
 
   // 2. Check threshold
   if (!canStartCeremony(registry)) {
-    throw new Error(`Not enough active nodes (need ${registry.admin_quorum})`);
+    throw new Error(`Not enough active nodes (need ${registry.ceremony_bounds.min_participants})`);
   }
 
   // 3. Resolve the signing quorum
@@ -550,7 +579,7 @@ function checkHashChain(
 | **Man-in-the-middle** | HTTPS + EIP-712 signature verification. Endpoints are signed in the document. |
 | **Node key rotation** | When a node is revoked, its `status` changes to `REVOKED`. Always filter for `ACTIVE` nodes. |
 | **Endpoint tampering** | Endpoint URLs are covered by the document hash and admin signatures. Changing them requires multi-sig approval. |
-| **Insufficient quorum** | `admin_quorum` validation ensures you have enough active nodes before starting MPC ceremonies. |
+| **Insufficient quorum** | `ceremony_bounds.min_participants` validation ensures you have enough active nodes before starting MPC ceremonies. |
 
 ### Trust Root Summary
 
@@ -563,7 +592,7 @@ Admin Addresses (hardcoded)
               ├── merkle_root (integrity of individual nodes)
               ├── prev_document_hash (chain to previous version)
               ├── backoffice_service_pubkey (backoffice authentication)
-              ├── allowed_curves / allowed_protocols / admin_quorum (MPC policy)
+              ├── ceremony_bounds (thresholds, participants, protocols, curves)
               └── endpoints (primary + mirrors, signed discovery)
 ```
 
@@ -612,6 +641,15 @@ interface RegistryEndpoints {
   updated_at: string;
 }
 
+interface CeremonyBounds {
+  min_signing_threshold: number;
+  max_signing_threshold: number;
+  min_participants:      number;
+  max_participants:      number;
+  allowed_protocols:     string[];
+  allowed_curves:        string[];
+}
+
 interface RegistryDocument {
   registry_id:            string;
   version:                number;
@@ -619,9 +657,7 @@ interface RegistryDocument {
   expires_at:             number;
   admin_addresses:        string[];
   backoffice_service_pubkey: string | null;
-  allowed_curves:         string[];
-  allowed_protocols:      string[];
-  admin_quorum:           number;
+  ceremony_bounds:        CeremonyBounds;
   endpoints:              RegistryEndpoints | null;
   nodes:                  NodeRecord[];
   merkle_root:            string;
@@ -657,7 +693,7 @@ interface HighWaterMark {
 | `POST` | `/api/registry/nodes/revoke` | Propose node revocation |
 | `POST` | `/api/registry/admins/propose` | Propose admin rotation |
 | `POST` | `/api/registry/backoffice-pubkey/propose` | Propose backoffice public key |
-| `POST` | `/api/registry/mpc-policy/propose` | Propose MPC policy (curves, protocols, admin_quorum) |
+| `POST` | `/api/registry/mpc-policy/propose` | Propose ceremony bounds (thresholds, participants, protocols, curves) |
 | `POST` | `/api/registry/endpoints/propose` | Propose endpoint URLs |
 | `POST` | `/api/registry/verify` | Verify a document (10-step pipeline) |
 | `POST` | `/api/registry/publish` | Publish signed document |

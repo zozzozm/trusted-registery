@@ -4,7 +4,7 @@
 
 import { ethers } from 'ethers'
 import { createHash } from 'crypto'
-import { UnsignedDocument, AdminSignature, VerifyResult, NodeRecord, RegistryEndpoints } from './types'
+import { UnsignedDocument, AdminSignature, VerifyResult, NodeRecord, RegistryEndpoints, CeremonyBounds } from './types'
 
 // ── Hashing ───────────────────────────────────────────────────────────────────
 
@@ -88,6 +88,14 @@ export const EIP712_TYPES = {
     { name: 'mirrors',    type: 'string[]' },
     { name: 'updated_at', type: 'string' },
   ],
+  CeremonyBounds: [
+    { name: 'min_signing_threshold', type: 'uint256' },
+    { name: 'max_signing_threshold', type: 'uint256' },
+    { name: 'min_participants',      type: 'uint256' },
+    { name: 'max_participants',      type: 'uint256' },
+    { name: 'allowed_protocols',     type: 'string[]' },
+    { name: 'allowed_curves',        type: 'string[]' },
+  ],
   RegistryDocument: [
     { name: 'registry_id',            type: 'string' },
     { name: 'version',               type: 'uint256' },
@@ -95,9 +103,7 @@ export const EIP712_TYPES = {
     { name: 'expires_at',             type: 'uint256' },
     { name: 'admin_addresses',        type: 'address[]' },
     { name: 'backoffice_service_pubkey', type: 'string' },
-    { name: 'allowed_curves',         type: 'string[]' },
-    { name: 'allowed_protocols',      type: 'string[]' },
-    { name: 'admin_quorum',             type: 'uint256' },
+    { name: 'ceremony_bounds',       type: 'CeremonyBounds' },
     { name: 'endpoints',             type: 'Endpoints' },
     { name: 'nodes',                 type: 'NodeRecord[]' },
     { name: 'merkle_root',            type: 'string' },
@@ -113,9 +119,7 @@ type DocForSigning = {
   expires_at: number
   admin_addresses: string[]
   backoffice_service_pubkey: string | null
-  allowed_curves: string[]
-  allowed_protocols: string[]
-  admin_quorum: number
+  ceremony_bounds: CeremonyBounds
   endpoints: RegistryEndpoints | null
   nodes: NodeRecord[]
   merkle_root: string
@@ -135,9 +139,14 @@ export function buildTypedDataValue(doc: DocForSigning) {
     expires_at:             doc.expires_at,
     admin_addresses:        doc.admin_addresses,
     backoffice_service_pubkey: doc.backoffice_service_pubkey ?? '',
-    allowed_curves:         doc.allowed_curves,
-    allowed_protocols:      doc.allowed_protocols,
-    admin_quorum:             doc.admin_quorum,
+    ceremony_bounds: {
+      min_signing_threshold: doc.ceremony_bounds.min_signing_threshold,
+      max_signing_threshold: doc.ceremony_bounds.max_signing_threshold,
+      min_participants:      doc.ceremony_bounds.min_participants,
+      max_participants:      doc.ceremony_bounds.max_participants,
+      allowed_protocols:     doc.ceremony_bounds.allowed_protocols,
+      allowed_curves:        doc.ceremony_bounds.allowed_curves,
+    },
     endpoints:             doc.endpoints
       ? { primary: doc.endpoints.primary, mirrors: doc.endpoints.mirrors, updated_at: doc.endpoints.updated_at }
       : { primary: '', mirrors: [], updated_at: '' },
@@ -212,9 +221,7 @@ export function verifyMultiSig(
     expires_at: number
     admin_addresses: string[]
     backoffice_service_pubkey: string | null
-    allowed_curves: string[]
-    allowed_protocols: string[]
-    admin_quorum: number
+    ceremony_bounds: CeremonyBounds
     endpoints: RegistryEndpoints | null
     nodes: NodeRecord[]
     merkle_root: string
