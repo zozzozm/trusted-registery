@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsArray, ValidateNested, IsIn, IsOptional, Matches } from 'class-validator'
+import { IsString, IsNumber, IsArray, ValidateNested, IsIn, IsOptional, Matches, ArrayNotEmpty, Min } from 'class-validator'
 import { Type } from 'class-transformer'
 
 class NodeRecordDto {
@@ -45,6 +45,17 @@ class EndpointsDto {
   updated_at: string
 }
 
+class CeremonyBoundsDto {
+  @IsNumber() @Min(2)
+  min_signing_threshold: number
+
+  @IsArray() @ArrayNotEmpty() @IsString({ each: true })
+  allowed_protocols: string[]
+
+  @IsArray() @ArrayNotEmpty() @IsString({ each: true })
+  allowed_curves: string[]
+}
+
 export class VerifyDocumentDto {
   @IsString()
   registry_id: string
@@ -66,16 +77,9 @@ export class VerifyDocumentDto {
   @IsString()
   backoffice_service_pubkey: string | null
 
-  @IsArray()
-  @IsString({ each: true })
-  allowed_curves: string[]
-
-  @IsArray()
-  @IsString({ each: true })
-  allowed_protocols: string[]
-
-  @IsNumber()
-  admin_quorum: number
+  @ValidateNested()
+  @Type(() => CeremonyBoundsDto)
+  ceremony_bounds: CeremonyBoundsDto
 
   @IsOptional()
   @ValidateNested()

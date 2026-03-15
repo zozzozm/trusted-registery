@@ -176,21 +176,24 @@ export class RegistryService implements OnModuleInit {
     return this.stagedDraft
   }
 
-  /** POST /registry/mpc-policy/propose — propose MPC policy (curves, protocols, admin_quorum) */
-  proposeMpcPolicy(body: { allowed_curves: string[]; allowed_protocols: string[]; admin_quorum: number }): RegistryDocument {
+  /** POST /registry/mpc-policy/propose — propose MPC policy (ceremony_bounds) */
+  proposeMpcPolicy(body: { ceremony_bounds: { min_signing_threshold: number; allowed_protocols: string[]; allowed_curves: string[] } }): RegistryDocument {
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
 
-    const { allowed_curves, allowed_protocols, admin_quorum } = body
-    if (!Array.isArray(allowed_curves) || allowed_curves.length === 0) {
-      throw new BadRequestException('allowed_curves must be a non-empty array')
+    const cb = body.ceremony_bounds
+    if (!cb || typeof cb !== 'object') {
+      throw new BadRequestException('ceremony_bounds must be an object')
     }
-    if (!Array.isArray(allowed_protocols) || allowed_protocols.length === 0) {
-      throw new BadRequestException('allowed_protocols must be a non-empty array')
+    if (!Array.isArray(cb.allowed_curves) || cb.allowed_curves.length === 0) {
+      throw new BadRequestException('ceremony_bounds.allowed_curves must be a non-empty array')
     }
-    if (!Number.isInteger(admin_quorum) || admin_quorum < 2) {
-      throw new BadRequestException('admin_quorum must be an integer >= 2')
+    if (!Array.isArray(cb.allowed_protocols) || cb.allowed_protocols.length === 0) {
+      throw new BadRequestException('ceremony_bounds.allowed_protocols must be a non-empty array')
+    }
+    if (!Number.isInteger(cb.min_signing_threshold) || cb.min_signing_threshold < 2) {
+      throw new BadRequestException('ceremony_bounds.min_signing_threshold must be an integer >= 2')
     }
 
     // Auto-create draft if none exists
@@ -200,12 +203,10 @@ export class RegistryService implements OnModuleInit {
       this.stagedDraft = { ...base, signatures: [] }
     }
 
-    this.stagedDraft.allowed_curves = allowed_curves
-    this.stagedDraft.allowed_protocols = allowed_protocols
-    this.stagedDraft.admin_quorum = admin_quorum
+    this.stagedDraft.ceremony_bounds = cb
     this._refreshDraftHash()
 
-    this.audit('MPC_POLICY_PROPOSED', { allowed_curves, allowed_protocols, admin_quorum })
+    this.audit('MPC_POLICY_PROPOSED', { ceremony_bounds: cb })
     return this.stagedDraft
   }
 
@@ -302,7 +303,7 @@ export class RegistryService implements OnModuleInit {
     const fail = (step: string, detail: string) => steps.push({ step, passed: false, detail })
 
     // Step 1 — Structure
-    const requiredFields = ['registry_id','version','issued_at','expires_at','admin_addresses','nodes','merkle_root','prev_document_hash','document_hash','allowed_curves','allowed_protocols','admin_quorum']
+    const requiredFields = ['registry_id','version','issued_at','expires_at','admin_addresses','nodes','merkle_root','prev_document_hash','document_hash','ceremony_bounds']
     const missing  = requiredFields.filter(f => doc[f] === undefined)
     if (missing.length > 0) {
       fail('structure', `Missing fields: ${missing.join(', ')}`)
@@ -334,9 +335,7 @@ export class RegistryService implements OnModuleInit {
       expires_at:             doc.expires_at,
       admin_addresses:        doc.admin_addresses,
       backoffice_service_pubkey: doc.backoffice_service_pubkey ?? null,
-      allowed_curves:         doc.allowed_curves ?? [],
-      allowed_protocols:      doc.allowed_protocols ?? [],
-      admin_quorum:             doc.admin_quorum ?? 2,
+      ceremony_bounds:        doc.ceremony_bounds ?? { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkle_root:            doc.merkle_root,
@@ -405,18 +404,18 @@ export class RegistryService implements OnModuleInit {
       }
     }
 
-    // Step 9 — MPC policy validation (curves, protocols, admin_quorum)
-    const allowedCurves = doc.allowed_curves ?? []
-    const allowedProtocols = doc.allowed_protocols ?? []
-    const adminQuorum = doc.admin_quorum ?? 2
-    if (!Array.isArray(allowedCurves) || allowedCurves.length === 0) {
-      fail('mpcPolicy', 'allowed_curves must be a non-empty array')
-    } else if (!Array.isArray(allowedProtocols) || allowedProtocols.length === 0) {
-      fail('mpcPolicy', 'allowed_protocols must be a non-empty array')
-    } else if (!Number.isInteger(adminQuorum) || adminQuorum < 2) {
-      fail('mpcPolicy', 'admin_quorum must be an integer >= 2')
+    // Step 9 — MPC policy validation (ceremony_bounds)
+    const cb = doc.ceremony_bounds
+    if (!cb || typeof cb !== 'object') {
+      fail('mpcPolicy', 'ceremony_bounds must be an object')
+    } else if (!Array.isArray(cb.allowed_curves) || cb.allowed_curves.length === 0) {
+      fail('mpcPolicy', 'ceremony_bounds.allowed_curves must be a non-empty array')
+    } else if (!Array.isArray(cb.allowed_protocols) || cb.allowed_protocols.length === 0) {
+      fail('mpcPolicy', 'ceremony_bounds.allowed_protocols must be a non-empty array')
+    } else if (!Number.isInteger(cb.min_signing_threshold) || cb.min_signing_threshold < 2) {
+      fail('mpcPolicy', 'ceremony_bounds.min_signing_threshold must be an integer >= 2')
     } else {
-      pass('mpcPolicy', `Curves: [${allowedCurves.join(', ')}], Protocols: [${allowedProtocols.join(', ')}], Quorum: ${adminQuorum}`)
+      pass('mpcPolicy', `Curves: [${cb.allowed_curves.join(', ')}], Protocols: [${cb.allowed_protocols.join(', ')}], Min Threshold: ${cb.min_signing_threshold}`)
     }
 
     // Step 11 — Endpoints validation
@@ -549,9 +548,7 @@ export class RegistryService implements OnModuleInit {
       expires_at:             doc.expires_at,
       admin_addresses:        doc.admin_addresses,
       backoffice_service_pubkey: doc.backoffice_service_pubkey ?? null,
-      allowed_curves:         doc.allowed_curves ?? [],
-      allowed_protocols:      doc.allowed_protocols ?? [],
-      admin_quorum:             doc.admin_quorum ?? 2,
+      ceremony_bounds:        doc.ceremony_bounds ?? { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkle_root:            doc.merkle_root,
@@ -598,9 +595,7 @@ export class RegistryService implements OnModuleInit {
       expires_at:             now + CONFIG.EXPIRY_SECONDS,
       admin_addresses:        admins,
       backoffice_service_pubkey: this.currentDoc?.backoffice_service_pubkey ?? null,
-      allowed_curves:         this.currentDoc?.allowed_curves ?? ['secp256k1', 'ed25519'],
-      allowed_protocols:      this.currentDoc?.allowed_protocols ?? ['cggmp21', 'frost'],
-      admin_quorum:             this.currentDoc?.admin_quorum ?? 2,
+      ceremony_bounds:        this.currentDoc?.ceremony_bounds ?? { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints:             this.currentDoc?.endpoints ?? null,
       nodes:                 sorted,
       merkle_root:            computeMerkleRoot(sorted),

@@ -1,23 +1,25 @@
 {
   "registry_id": "dev-custody-v1",
-  "version": 12,
-  "issued_at": 1773521816,
-  "expires_at": 1774126616,
+  "version": 14,
+  "issued_at": 1773561136,
+  "expires_at": 1774165936,
   "admin_addresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
     "0xff6Cb288bFc8D8b8B43c4B59439E4b66dd0e11c4"
   ],
   "backoffice_service_pubkey": null,
-  "allowed_curves": [
-    "secp256k1",
-    "ed25519"
-  ],
-  "allowed_protocols": [
-    "cggmp21",
-    "frost"
-  ],
-  "admin_quorum": 2,
+  "ceremony_bounds": {
+    "min_signing_threshold": 2,
+    "allowed_protocols": [
+      "cggmp21",
+      "frost"
+    ],
+    "allowed_curves": [
+      "secp256k1",
+      "ed25519"
+    ]
+  },
   "endpoints": {
     "primary": "https://raw.githubusercontent.com/zozzozm/trusted-registery/refs/heads/main/data/registry.json",
     "mirrors": [],
@@ -34,16 +36,16 @@
     }
   ],
   "merkle_root": "abb38ab54fba66f2bf7855992cf0b5186c221991d4ae64c06ebdd7acb0cd8714",
-  "prev_document_hash": "3189f6a4ec387b381ca9a0c4a2f405f187c9f758816b67c17cc5a84e574d20aa",
-  "document_hash": "fc26f08f804f2543e4a88dbe4a5b6fc336b73ad2c70d033cde93c2b7760c7476",
+  "prev_document_hash": "630c36018d133226f0b773f5215a013c57cbb73a5bbd4bae72f4d4a47c49873c",
+  "document_hash": "fdfe50d5fd8ecc004fc0c6c6df93f89b806972fc9b95b7a0a85089e364671cc8",
   "signatures": [
     {
       "admin_address": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
-      "signature": "0xb47e2b161f71307fd970b69df8c0000194f8616e6a0a1fc48af542e4dc22c0944c97813de915a5e28abfddca892c25fde01866b90f2f308550e12557809d6ba41c"
+      "signature": "0xb5cc1b42645977c1f9c464899a6f98bd241dd5da510cdd9642d535a969247dcf6a437730abcc34c22309238e2a5dadf19d014f158bc2dc9d3f5ec07ce4fce8da1b"
     },
     {
       "admin_address": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
-      "signature": "0x2d8ad1fc3aa46efa0e526638c1de47a1e7468ec11f5fb52f0354693452da18e60e202b699ae31a5a129c4457cb299468099369025c7ca3ce54716b9a2b2bf60f1b"
+      "signature": "0xd36c3561c3c2bf1eb6b8fb2419c4700740a99154101bdf697681b3b1736c800f02b2d95a6566a5721adc2e4f6d35b283c69447e00502a10f829c749bdf0d866a1b"
     }
   ]
 }

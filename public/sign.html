@@ -190,21 +190,21 @@
 
     <!-- MPC Policy -->
     <div class="section">
-      <h2>MPC Policy</h2>
+      <h2>Ceremony Bounds</h2>
       <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
-        Configure allowed elliptic curves, MPC protocols, and minimum admin quorum for signing ceremonies.
+        Configure MPC ceremony parameters: minimum signing threshold, allowed curves and protocols.
       </p>
       <div class="form-group">
+        <label>Min Signing Threshold</label>
+        <input id="cb-min-signing" type="number" min="2" value="2">
+      </div>
+      <div class="form-group">
         <label>Allowed Curves (comma-separated)</label>
-        <input id="propose-curves" placeholder="secp256k1, ed25519" value="secp256k1, ed25519">
+        <input id="cb-curves" placeholder="secp256k1, ed25519" value="secp256k1, ed25519">
       </div>
       <div class="form-group">
         <label>Allowed Protocols (comma-separated)</label>
-        <input id="propose-protocols" placeholder="cggmp21, frost" value="cggmp21, frost">
-      </div>
-      <div class="form-group">
-        <label>Admin Quorum (min signers required)</label>
-        <input id="propose-admin-quorum" type="number" min="2" value="2">
+        <input id="cb-protocols" placeholder="cggmp21, frost" value="cggmp21, frost">
       </div>
       <button class="secondary" onclick="loadCurrentMpcPolicy()">Load Current</button>
       <button class="purple" onclick="proposeMpcPolicy()">Propose Policy</button>
@@ -446,10 +446,11 @@
         div.innerHTML = `<label>Admin ${i}</label><input class="admin-addr-input" placeholder="0x..." value="${addr}">`
         adminContainer.appendChild(div)
       })
-      // MPC Policy
-      document.getElementById('propose-curves').value = (draft.allowed_curves || []).join(', ')
-      document.getElementById('propose-protocols').value = (draft.allowed_protocols || []).join(', ')
-      document.getElementById('propose-admin-quorum').value = draft.admin_quorum ?? 2
+      // Ceremony Bounds
+      const cb = draft.ceremony_bounds || {}
+      document.getElementById('cb-curves').value = (cb.allowed_curves || []).join(', ')
+      document.getElementById('cb-protocols').value = (cb.allowed_protocols || []).join(', ')
+      document.getElementById('cb-min-signing').value = cb.min_signing_threshold ?? 2
       // Endpoints
       document.getElementById('propose-primary-url').value = draft.endpoints?.primary || ''
       const mirrorContainer = document.getElementById('mirror-inputs')
@@ -752,12 +753,12 @@
 
     // ── MPC Policy ─────────────────────────────────────────────────────────
     function renderMpcPolicy(doc) {
-      const curves = doc.allowed_curves || []
-      const protocols = doc.allowed_protocols || []
-      const t = doc.admin_quorum ?? 2
+      const cb = doc.ceremony_bounds || {}
+      const curves = cb.allowed_curves || []
+      const protocols = cb.allowed_protocols || []
       return `<div style="font-size:0.8rem;">Curves: [${curves.join(', ')}]</div>` +
              `<div style="font-size:0.8rem;">Protocols: [${protocols.join(', ')}]</div>` +
-             `<div style="font-size:0.8rem;">Admin Quorum: ${t}</div>`
+             `<div style="font-size:0.8rem;">Min Signing Threshold: ${cb.min_signing_threshold ?? '?'}</div>`
     }
 
     async function loadCurrentMpcPolicy() {
@@ -765,33 +766,34 @@
         const res = await fetch(`${API}/current`)
         if (!res.ok) { showMsg('mpc-policy-msg', 'No current registry', false); return }
         const doc = await res.json()
-        document.getElementById('propose-curves').value = (doc.allowed_curves || []).join(', ')
-        document.getElementById('propose-protocols').value = (doc.allowed_protocols || []).join(', ')
-        document.getElementById('propose-admin-quorum').value = doc.admin_quorum ?? 2
-        showMsg('mpc-policy-msg', 'Loaded current MPC policy', true)
+        const cb = doc.ceremony_bounds || {}
+        document.getElementById('cb-curves').value = (cb.allowed_curves || []).join(', ')
+        document.getElementById('cb-protocols').value = (cb.allowed_protocols || []).join(', ')
+        document.getElementById('cb-min-signing').value = cb.min_signing_threshold ?? 2
+        showMsg('mpc-policy-msg', 'Loaded current ceremony bounds', true)
       } catch (e) { showMsg('mpc-policy-msg', e.message, false) }
     }
 
     async function proposeMpcPolicy() {
-      const allowedCurves = document.getElementById('propose-curves').value.split(',').map(s => s.trim()).filter(Boolean)
-      const allowedProtocols = document.getElementById('propose-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
-      const adminQuorum = parseInt(document.getElementById('propose-admin-quorum').value, 10)
-      if (!allowedCurves.length || !allowedProtocols.length) {
+      const allowed_curves = document.getElementById('cb-curves').value.split(',').map(s => s.trim()).filter(Boolean)
+      const allowed_protocols = document.getElementById('cb-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
+      const min_signing_threshold = parseInt(document.getElementById('cb-min-signing').value, 10)
+      if (!allowed_curves.length || !allowed_protocols.length) {
         showMsg('mpc-policy-msg', 'Curves and protocols are required', false); return
       }
-      if (isNaN(adminQuorum) || adminQuorum < 2) {
-        showMsg('mpc-policy-msg', 'Admin Quorum must be >= 2', false); return
+      if (isNaN(min_signing_threshold) || min_signing_threshold < 2) {
+        showMsg('mpc-policy-msg', 'Min signing threshold must be >= 2', false); return
       }
       try {
         const res = await fetch(`${API}/mpc-policy/propose`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ allowed_curves: allowedCurves, allowed_protocols: allowedProtocols, admin_quorum: adminQuorum }),
+          body: JSON.stringify({ ceremony_bounds: { min_signing_threshold, allowed_protocols, allowed_curves } }),
         })
         const result = await res.json()
         if (res.ok) {
           draft = result
-          showMsg('mpc-policy-msg', 'MPC policy proposed! Draft created (v' + result.version + '). Go to Sign & Publish tab to sign.', true)
+          showMsg('mpc-policy-msg', 'Ceremony bounds proposed! Draft created (v' + result.version + '). Go to Sign & Publish tab to sign.', true)
           showDraftInfo()
         } else {
           showMsg('mpc-policy-msg', result.message || 'Failed', false)
