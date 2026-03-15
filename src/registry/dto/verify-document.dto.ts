@@ -49,15 +49,6 @@ class CeremonyBoundsDto {
   @IsNumber() @Min(2)
   min_signing_threshold: number
 
-  @IsNumber() @Min(2)
-  max_signing_threshold: number
-
-  @IsNumber() @Min(2)
-  min_participants: number
-
-  @IsNumber() @Min(2)
-  max_participants: number
-
   @IsArray() @ArrayNotEmpty() @IsString({ each: true })
   allowed_protocols: string[]
 

@@ -38,9 +38,6 @@ async function main() {
     backoffice_service_pubkey: null,
     ceremony_bounds: {
       min_signing_threshold: 2,
-      max_signing_threshold: 9,
-      min_participants: 2,
-      max_participants: 9,
       allowed_protocols: ['cggmp21', 'frost'],
       allowed_curves: ['secp256k1', 'ed25519'],
     },

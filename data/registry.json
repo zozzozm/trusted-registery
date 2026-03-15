@@ -1,8 +1,8 @@
 {
   "registry_id": "dev-custody-v1",
-  "version": 13,
-  "issued_at": 1773560168,
-  "expires_at": 1774164968,
+  "version": 14,
+  "issued_at": 1773561136,
+  "expires_at": 1774165936,
   "admin_addresses": [
     "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
     "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
@@ -11,9 +11,6 @@
   "backoffice_service_pubkey": null,
   "ceremony_bounds": {
     "min_signing_threshold": 2,
-    "max_signing_threshold": 3,
-    "min_participants": 3,
-    "max_participants": 3,
     "allowed_protocols": [
       "cggmp21",
       "frost"
@@ -39,16 +36,16 @@
     }
   ],
   "merkle_root": "abb38ab54fba66f2bf7855992cf0b5186c221991d4ae64c06ebdd7acb0cd8714",
-  "prev_document_hash": "fc26f08f804f2543e4a88dbe4a5b6fc336b73ad2c70d033cde93c2b7760c7476",
-  "document_hash": "630c36018d133226f0b773f5215a013c57cbb73a5bbd4bae72f4d4a47c49873c",
+  "prev_document_hash": "630c36018d133226f0b773f5215a013c57cbb73a5bbd4bae72f4d4a47c49873c",
+  "document_hash": "fdfe50d5fd8ecc004fc0c6c6df93f89b806972fc9b95b7a0a85089e364671cc8",
   "signatures": [
     {
-      "admin_address": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
-      "signature": "0xf1d0abb3d99c6a6deef5570026d965662d3157374f9335e174302fb324f07be50655dc7533495606f82f191c540a507c6928385e86d6a58e781145bbe902d9831b"
+      "admin_address": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
+      "signature": "0xb5cc1b42645977c1f9c464899a6f98bd241dd5da510cdd9642d535a969247dcf6a437730abcc34c22309238e2a5dadf19d014f158bc2dc9d3f5ec07ce4fce8da1b"
     },
     {
-      "admin_address": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
-      "signature": "0x82c0395939c4341221163e58a96a5811923072c17e4a9daaf53667b1af4b29a37174476e814635e05c2ae85fc1443fffbd133d7618cf7e25cbef9ff1631d7ed11b"
+      "admin_address": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
+      "signature": "0xd36c3561c3c2bf1eb6b8fb2419c4700740a99154101bdf697681b3b1736c800f02b2d95a6566a5721adc2e4f6d35b283c69447e00502a10f829c749bdf0d866a1b"
     }
   ]
 }

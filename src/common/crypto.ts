@@ -90,9 +90,6 @@ export const EIP712_TYPES = {
   ],
   CeremonyBounds: [
     { name: 'min_signing_threshold', type: 'uint256' },
-    { name: 'max_signing_threshold', type: 'uint256' },
-    { name: 'min_participants',      type: 'uint256' },
-    { name: 'max_participants',      type: 'uint256' },
     { name: 'allowed_protocols',     type: 'string[]' },
     { name: 'allowed_curves',        type: 'string[]' },
   ],
@@ -141,9 +138,6 @@ export function buildTypedDataValue(doc: DocForSigning) {
     backoffice_service_pubkey: doc.backoffice_service_pubkey ?? '',
     ceremony_bounds: {
       min_signing_threshold: doc.ceremony_bounds.min_signing_threshold,
-      max_signing_threshold: doc.ceremony_bounds.max_signing_threshold,
-      min_participants:      doc.ceremony_bounds.min_participants,
-      max_participants:      doc.ceremony_bounds.max_participants,
       allowed_protocols:     doc.ceremony_bounds.allowed_protocols,
       allowed_curves:        doc.ceremony_bounds.allowed_curves,
     },

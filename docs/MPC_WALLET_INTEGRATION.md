@@ -38,9 +38,6 @@ The `registry.json` file contains a single `RegistryDocument`:
   "backoffice_service_pubkey": "64-hex-chars...", // backoffice service public key (or null)
   "ceremony_bounds": {                           // MPC ceremony constraints (signed by admins)
     "min_signing_threshold": 2,                  // minimum signers required (>= 2)
-    "max_signing_threshold": 9,                  // maximum signers allowed
-    "min_participants":      2,                  // minimum participants in ceremony (>= 2)
-    "max_participants":      9,                  // maximum participants in ceremony
     "allowed_protocols":     ["cggmp21", "frost"],   // MPC protocols allowed
     "allowed_curves":        ["secp256k1", "ed25519"] // elliptic curves allowed
   },
@@ -90,8 +87,7 @@ The `endpoints` object tells clients where to fetch the registry:
 ### Ceremony Bounds
 
 The `ceremony_bounds` object controls which cryptographic parameters are allowed for MPC ceremonies:
-- `min_signing_threshold` / `max_signing_threshold` — range of allowed signing thresholds (min >= 2)
-- `min_participants` / `max_participants` — range of allowed ceremony participants (min >= 2)
+- `min_signing_threshold` — minimum number of signers required (>= 2)
 - `allowed_protocols` — list of allowed MPC protocols (e.g. `["cggmp21", "frost"]`)
 - `allowed_curves` — list of allowed elliptic curves (e.g. `["secp256k1", "ed25519"]`)
 - The entire `ceremony_bounds` object is covered by the document hash and admin signatures, so changes require multi-sig approval
@@ -273,9 +269,6 @@ const EIP712_TYPES = {
   ],
   CeremonyBounds: [
     { name: 'min_signing_threshold', type: 'uint256' },
-    { name: 'max_signing_threshold', type: 'uint256' },
-    { name: 'min_participants',      type: 'uint256' },
-    { name: 'max_participants',      type: 'uint256' },
     { name: 'allowed_protocols',     type: 'string[]' },
     { name: 'allowed_curves',        type: 'string[]' },
   ],
@@ -310,9 +303,6 @@ function checkSignatures(doc: RegistryDocument): void {
     backoffice_service_pubkey: doc.backoffice_service_pubkey ?? '',
     ceremony_bounds: {
       min_signing_threshold: doc.ceremony_bounds.min_signing_threshold,
-      max_signing_threshold: doc.ceremony_bounds.max_signing_threshold,
-      min_participants:      doc.ceremony_bounds.min_participants,
-      max_participants:      doc.ceremony_bounds.max_participants,
       allowed_protocols:     doc.ceremony_bounds.allowed_protocols,
       allowed_curves:        doc.ceremony_bounds.allowed_curves,
     },
@@ -364,18 +354,6 @@ function checkCeremonyBounds(doc: RegistryDocument): void {
   if (!cb) throw new Error('ceremony_bounds is required');
   if (!Number.isInteger(cb.min_signing_threshold) || cb.min_signing_threshold < 2) {
     throw new Error('min_signing_threshold must be >= 2');
-  }
-  if (cb.max_signing_threshold < cb.min_signing_threshold) {
-    throw new Error('max_signing_threshold must be >= min_signing_threshold');
-  }
-  if (!Number.isInteger(cb.min_participants) || cb.min_participants < 2) {
-    throw new Error('min_participants must be >= 2');
-  }
-  if (cb.max_participants < cb.min_participants) {
-    throw new Error('max_participants must be >= min_participants');
-  }
-  if (cb.min_signing_threshold > cb.max_participants) {
-    throw new Error('min_signing_threshold cannot exceed max_participants');
   }
   if (!Array.isArray(cb.allowed_curves) || cb.allowed_curves.length === 0) {
     throw new Error('allowed_curves must be a non-empty array');
@@ -450,7 +428,7 @@ function getNodesByRole(
 ```typescript
 function canStartCeremony(doc: RegistryDocument): boolean {
   const activeNodes = getActiveNodes(doc);
-  return activeNodes.length >= doc.ceremony_bounds.min_participants;
+  return activeNodes.length >= doc.ceremony_bounds.min_signing_threshold;
 }
 ```
 
@@ -464,7 +442,7 @@ async function startSigningCeremony(txPayload: any) {
 
   // 2. Check threshold
   if (!canStartCeremony(registry)) {
-    throw new Error(`Not enough active nodes (need ${registry.ceremony_bounds.min_participants})`);
+    throw new Error(`Not enough active nodes (need ${registry.ceremony_bounds.min_signing_threshold})`);
   }
 
   // 3. Resolve the signing quorum
@@ -579,7 +557,7 @@ function checkHashChain(
 | **Man-in-the-middle** | HTTPS + EIP-712 signature verification. Endpoints are signed in the document. |
 | **Node key rotation** | When a node is revoked, its `status` changes to `REVOKED`. Always filter for `ACTIVE` nodes. |
 | **Endpoint tampering** | Endpoint URLs are covered by the document hash and admin signatures. Changing them requires multi-sig approval. |
-| **Insufficient quorum** | `ceremony_bounds.min_participants` validation ensures you have enough active nodes before starting MPC ceremonies. |
+| **Insufficient quorum** | `ceremony_bounds.min_signing_threshold` validation ensures you have enough active nodes before starting MPC ceremonies. |
 
 ### Trust Root Summary
 
@@ -643,9 +621,6 @@ interface RegistryEndpoints {
 
 interface CeremonyBounds {
   min_signing_threshold: number;
-  max_signing_threshold: number;
-  min_participants:      number;
-  max_participants:      number;
   allowed_protocols:     string[];
   allowed_curves:        string[];
 }

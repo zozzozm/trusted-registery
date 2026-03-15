@@ -24,9 +24,6 @@ export interface RegistryEndpoints {
 
 export interface CeremonyBounds {
   min_signing_threshold: number
-  max_signing_threshold: number
-  min_participants:      number
-  max_participants:      number
   allowed_protocols:     string[]
   allowed_curves:        string[]
 }

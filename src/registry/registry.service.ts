@@ -177,7 +177,7 @@ export class RegistryService implements OnModuleInit {
   }
 
   /** POST /registry/mpc-policy/propose — propose MPC policy (ceremony_bounds) */
-  proposeMpcPolicy(body: { ceremony_bounds: { min_signing_threshold: number; max_signing_threshold: number; min_participants: number; max_participants: number; allowed_protocols: string[]; allowed_curves: string[] } }): RegistryDocument {
+  proposeMpcPolicy(body: { ceremony_bounds: { min_signing_threshold: number; allowed_protocols: string[]; allowed_curves: string[] } }): RegistryDocument {
     if (this.draftLocked) {
       throw new ConflictException('Draft is locked — it already has signatures. DELETE /registry/pending first.')
     }
@@ -194,18 +194,6 @@ export class RegistryService implements OnModuleInit {
     }
     if (!Number.isInteger(cb.min_signing_threshold) || cb.min_signing_threshold < 2) {
       throw new BadRequestException('ceremony_bounds.min_signing_threshold must be an integer >= 2')
-    }
-    if (!Number.isInteger(cb.max_signing_threshold) || cb.max_signing_threshold < cb.min_signing_threshold) {
-      throw new BadRequestException('ceremony_bounds.max_signing_threshold must be >= min_signing_threshold')
-    }
-    if (!Number.isInteger(cb.min_participants) || cb.min_participants < 2) {
-      throw new BadRequestException('ceremony_bounds.min_participants must be an integer >= 2')
-    }
-    if (!Number.isInteger(cb.max_participants) || cb.max_participants < cb.min_participants) {
-      throw new BadRequestException('ceremony_bounds.max_participants must be >= min_participants')
-    }
-    if (cb.min_signing_threshold > cb.min_participants) {
-      throw new BadRequestException('min_signing_threshold cannot exceed min_participants')
     }
 
     // Auto-create draft if none exists
@@ -347,7 +335,7 @@ export class RegistryService implements OnModuleInit {
       expires_at:             doc.expires_at,
       admin_addresses:        doc.admin_addresses,
       backoffice_service_pubkey: doc.backoffice_service_pubkey ?? null,
-      ceremony_bounds:        doc.ceremony_bounds ?? { min_signing_threshold: 2, max_signing_threshold: 9, min_participants: 2, max_participants: 9, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
+      ceremony_bounds:        doc.ceremony_bounds ?? { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkle_root:            doc.merkle_root,
@@ -426,16 +414,8 @@ export class RegistryService implements OnModuleInit {
       fail('mpcPolicy', 'ceremony_bounds.allowed_protocols must be a non-empty array')
     } else if (!Number.isInteger(cb.min_signing_threshold) || cb.min_signing_threshold < 2) {
       fail('mpcPolicy', 'ceremony_bounds.min_signing_threshold must be an integer >= 2')
-    } else if (!Number.isInteger(cb.max_signing_threshold) || cb.max_signing_threshold < cb.min_signing_threshold) {
-      fail('mpcPolicy', 'ceremony_bounds.max_signing_threshold must be >= min_signing_threshold')
-    } else if (!Number.isInteger(cb.min_participants) || cb.min_participants < 2) {
-      fail('mpcPolicy', 'ceremony_bounds.min_participants must be an integer >= 2')
-    } else if (!Number.isInteger(cb.max_participants) || cb.max_participants < cb.min_participants) {
-      fail('mpcPolicy', 'ceremony_bounds.max_participants must be >= min_participants')
-    } else if (cb.min_signing_threshold > cb.min_participants) {
-      fail('mpcPolicy', 'min_signing_threshold cannot exceed min_participants')
     } else {
-      pass('mpcPolicy', `Curves: [${cb.allowed_curves.join(', ')}], Protocols: [${cb.allowed_protocols.join(', ')}], Threshold: ${cb.min_signing_threshold}-${cb.max_signing_threshold}, Participants: ${cb.min_participants}-${cb.max_participants}`)
+      pass('mpcPolicy', `Curves: [${cb.allowed_curves.join(', ')}], Protocols: [${cb.allowed_protocols.join(', ')}], Min Threshold: ${cb.min_signing_threshold}`)
     }
 
     // Step 11 — Endpoints validation
@@ -568,7 +548,7 @@ export class RegistryService implements OnModuleInit {
       expires_at:             doc.expires_at,
       admin_addresses:        doc.admin_addresses,
       backoffice_service_pubkey: doc.backoffice_service_pubkey ?? null,
-      ceremony_bounds:        doc.ceremony_bounds ?? { min_signing_threshold: 2, max_signing_threshold: 9, min_participants: 2, max_participants: 9, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
+      ceremony_bounds:        doc.ceremony_bounds ?? { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints:             doc.endpoints ?? null,
       nodes:                 doc.nodes,
       merkle_root:            doc.merkle_root,
@@ -615,7 +595,7 @@ export class RegistryService implements OnModuleInit {
       expires_at:             now + CONFIG.EXPIRY_SECONDS,
       admin_addresses:        admins,
       backoffice_service_pubkey: this.currentDoc?.backoffice_service_pubkey ?? null,
-      ceremony_bounds:        this.currentDoc?.ceremony_bounds ?? { min_signing_threshold: 2, max_signing_threshold: 9, min_participants: 2, max_participants: 9, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
+      ceremony_bounds:        this.currentDoc?.ceremony_bounds ?? { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints:             this.currentDoc?.endpoints ?? null,
       nodes:                 sorted,
       merkle_root:            computeMerkleRoot(sorted),

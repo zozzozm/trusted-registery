@@ -58,7 +58,7 @@ async function buildDoc(overrides: Partial<UnsignedDocument> = {}): Promise<Regi
     issued_at: now, expires_at: now + 3600,
     admin_addresses: adminAddresses(),
     backoffice_service_pubkey: null,
-    ceremony_bounds: { min_signing_threshold: 2, max_signing_threshold: 9, min_participants: 2, max_participants: 9, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
+    ceremony_bounds: { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
     endpoints: null,
     nodes: [], merkle_root: computeMerkleRoot([]),
     prev_document_hash: null, document_hash: '',
@@ -101,7 +101,7 @@ describe('Verify — each failure case', () => {
       registry_id: 'x', version: 1, issued_at: 1, expires_at: 1,
       admin_addresses: adminAddresses(),
       backoffice_service_pubkey: null,
-      ceremony_bounds: { min_signing_threshold: 2, max_signing_threshold: 9, min_participants: 2, max_participants: 9, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
+      ceremony_bounds: { min_signing_threshold: 2, allowed_protocols: ['cggmp21', 'frost'], allowed_curves: ['secp256k1', 'ed25519'] },
       endpoints: null,
       nodes: [], merkle_root: 'x', prev_document_hash: null, document_hash: 'x', signatures: []
     })

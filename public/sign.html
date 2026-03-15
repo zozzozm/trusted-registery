@@ -192,27 +192,11 @@
     <div class="section">
       <h2>Ceremony Bounds</h2>
       <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
-        Configure MPC ceremony parameters: signing thresholds, participant limits, allowed curves and protocols.
+        Configure MPC ceremony parameters: minimum signing threshold, allowed curves and protocols.
       </p>
-      <div class="row">
-        <div class="form-group">
-          <label>Min Signing Threshold</label>
-          <input id="cb-min-signing" type="number" min="2" value="2">
-        </div>
-        <div class="form-group">
-          <label>Max Signing Threshold</label>
-          <input id="cb-max-signing" type="number" min="2" value="9">
-        </div>
-      </div>
-      <div class="row">
-        <div class="form-group">
-          <label>Min Participants</label>
-          <input id="cb-min-participants" type="number" min="2" value="2">
-        </div>
-        <div class="form-group">
-          <label>Max Participants</label>
-          <input id="cb-max-participants" type="number" min="2" value="9">
-        </div>
+      <div class="form-group">
+        <label>Min Signing Threshold</label>
+        <input id="cb-min-signing" type="number" min="2" value="2">
       </div>
       <div class="form-group">
         <label>Allowed Curves (comma-separated)</label>
@@ -467,9 +451,6 @@
       document.getElementById('cb-curves').value = (cb.allowed_curves || []).join(', ')
       document.getElementById('cb-protocols').value = (cb.allowed_protocols || []).join(', ')
       document.getElementById('cb-min-signing').value = cb.min_signing_threshold ?? 2
-      document.getElementById('cb-max-signing').value = cb.max_signing_threshold ?? 9
-      document.getElementById('cb-min-participants').value = cb.min_participants ?? 2
-      document.getElementById('cb-max-participants').value = cb.max_participants ?? 9
       // Endpoints
       document.getElementById('propose-primary-url').value = draft.endpoints?.primary || ''
       const mirrorContainer = document.getElementById('mirror-inputs')
@@ -777,8 +758,7 @@
       const protocols = cb.allowed_protocols || []
       return `<div style="font-size:0.8rem;">Curves: [${curves.join(', ')}]</div>` +
              `<div style="font-size:0.8rem;">Protocols: [${protocols.join(', ')}]</div>` +
-             `<div style="font-size:0.8rem;">Signing Threshold: ${cb.min_signing_threshold ?? '?'}-${cb.max_signing_threshold ?? '?'}</div>` +
-             `<div style="font-size:0.8rem;">Participants: ${cb.min_participants ?? '?'}-${cb.max_participants ?? '?'}</div>`
+             `<div style="font-size:0.8rem;">Min Signing Threshold: ${cb.min_signing_threshold ?? '?'}</div>`
     }
 
     async function loadCurrentMpcPolicy() {
@@ -790,9 +770,6 @@
         document.getElementById('cb-curves').value = (cb.allowed_curves || []).join(', ')
         document.getElementById('cb-protocols').value = (cb.allowed_protocols || []).join(', ')
         document.getElementById('cb-min-signing').value = cb.min_signing_threshold ?? 2
-        document.getElementById('cb-max-signing').value = cb.max_signing_threshold ?? 9
-        document.getElementById('cb-min-participants').value = cb.min_participants ?? 2
-        document.getElementById('cb-max-participants').value = cb.max_participants ?? 9
         showMsg('mpc-policy-msg', 'Loaded current ceremony bounds', true)
       } catch (e) { showMsg('mpc-policy-msg', e.message, false) }
     }
@@ -801,9 +778,6 @@
       const allowed_curves = document.getElementById('cb-curves').value.split(',').map(s => s.trim()).filter(Boolean)
       const allowed_protocols = document.getElementById('cb-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
       const min_signing_threshold = parseInt(document.getElementById('cb-min-signing').value, 10)
-      const max_signing_threshold = parseInt(document.getElementById('cb-max-signing').value, 10)
-      const min_participants = parseInt(document.getElementById('cb-min-participants').value, 10)
-      const max_participants = parseInt(document.getElementById('cb-max-participants').value, 10)
       if (!allowed_curves.length || !allowed_protocols.length) {
         showMsg('mpc-policy-msg', 'Curves and protocols are required', false); return
       }
@@ -814,7 +788,7 @@
         const res = await fetch(`${API}/mpc-policy/propose`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ ceremony_bounds: { min_signing_threshold, max_signing_threshold, min_participants, max_participants, allowed_protocols, allowed_curves } }),
+          body: JSON.stringify({ ceremony_bounds: { min_signing_threshold, allowed_protocols, allowed_curves } }),
         })
         const result = await res.json()
         if (res.ok) {
