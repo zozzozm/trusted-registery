@@ -570,7 +570,7 @@ Admin Addresses (hardcoded)
               ├── merkle_root (integrity of individual nodes)
               ├── prev_document_hash (chain to previous version)
               ├── backoffice_service_pubkey (backoffice authentication)
-              ├── ceremony_bounds (thresholds, participants, protocols, curves)
+              ├── ceremony_bounds (min threshold, protocols, curves)
               └── endpoints (primary + mirrors, signed discovery)
 ```
 
@@ -668,7 +668,7 @@ interface HighWaterMark {
 | `POST` | `/api/registry/nodes/revoke` | Propose node revocation |
 | `POST` | `/api/registry/admins/propose` | Propose admin rotation |
 | `POST` | `/api/registry/backoffice-pubkey/propose` | Propose backoffice public key |
-| `POST` | `/api/registry/mpc-policy/propose` | Propose ceremony bounds (thresholds, participants, protocols, curves) |
+| `POST` | `/api/registry/mpc-policy/propose` | Propose ceremony bounds (min threshold, protocols, curves) |
 | `POST` | `/api/registry/endpoints/propose` | Propose endpoint URLs |
 | `POST` | `/api/registry/verify` | Verify a document (10-step pipeline) |
 | `POST` | `/api/registry/publish` | Publish signed document |
