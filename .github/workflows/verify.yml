@@ -1,0 +1,118 @@
+name: Verify Registry Document
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check if registry files changed
+        id: check
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE=${{ github.event.pull_request.base.sha }}
+          else
+            BASE=${{ github.event.before }}
+          fi
+          echo "Comparing $BASE..HEAD"
+          if git diff --name-only "$BASE" HEAD | grep -qE 'data/(registry\.json|versions/)'; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.changed == 'true'
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+        if: steps.check.outputs.changed == 'true'
+
+      - name: Verify registry document signatures
+        if: steps.check.outputs.changed == 'true'
+        env:
+          ADMIN_ADDRESS_0: ${{ vars.ADMIN_ADDRESS_0 }}
+          ADMIN_ADDRESS_1: ${{ vars.ADMIN_ADDRESS_1 }}
+          ADMIN_ADDRESS_2: ${{ vars.ADMIN_ADDRESS_2 }}
+          POLICY_COMPLIANCE_ADDRESS_0: ${{ vars.POLICY_COMPLIANCE_ADDRESS_0 }}
+          POLICY_COMPLIANCE_ADDRESS_1: ${{ vars.POLICY_COMPLIANCE_ADDRESS_1 }}
+          POLICY_COMPLIANCE_ADDRESS_2: ${{ vars.POLICY_COMPLIANCE_ADDRESS_2 }}
+          TREASURY_OPS_ADDRESS_0: ${{ vars.TREASURY_OPS_ADDRESS_0 }}
+          AUDIT_OBSERVER_ADDRESS_0: ${{ vars.AUDIT_OBSERVER_ADDRESS_0 }}
+          REGISTRY_ID:     ${{ vars.REGISTRY_ID || 'dev-custody-v1' }}
+          REGISTRY_FILE:   './data/registry.json'
+        run: npx ts-node scripts/verify-file.ts
+
+      - name: Validate node changes
+        if: steps.check.outputs.changed == 'true'
+        env:
+          REGISTRY_ID:     ${{ vars.REGISTRY_ID || 'dev-custody-v1' }}
+          REGISTRY_FILE:   './data/registry.json'
+        run: npx ts-node scripts/verify-node-changes.ts
+
+      - name: Append-only check — version files are immutable
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE=${{ github.event.pull_request.base.sha }}
+          else
+            BASE=${{ github.event.before }}
+          fi
+          MODIFIED=$(git diff --name-only --diff-filter=MD "$BASE" HEAD -- 'data/versions/' || true)
+          if [ -n "$MODIFIED" ]; then
+            echo "::error::Version files were modified or deleted: $MODIFIED"
+            exit 1
+          fi
+          echo "Append-only check passed"
+
+      - name: Version continuity check
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          LATEST_VERSION=$(jq '.registry_metadata.version' data/registry.json)
+          VERSION_FILE="data/versions/${LATEST_VERSION}.json"
+
+          if [ ! -f "$VERSION_FILE" ]; then
+            echo "::error::Missing version file: $VERSION_FILE"
+            exit 1
+          fi
+
+          if ! diff -q data/registry.json "$VERSION_FILE" > /dev/null 2>&1; then
+            echo "::error::registry.json and $VERSION_FILE differ"
+            exit 1
+          fi
+
+          if [ "$LATEST_VERSION" -gt 1 ]; then
+            PREV_FILE="data/versions/$((LATEST_VERSION - 1)).json"
+            if [ ! -f "$PREV_FILE" ]; then
+              echo "::error::Previous version file missing: $PREV_FILE"
+              exit 1
+            fi
+          fi
+          echo "Version continuity check passed (v${LATEST_VERSION})"
+
+      - name: Hash chain verification
+        if: steps.check.outputs.changed == 'true'
+        run: |
+          LATEST_VERSION=$(jq '.registry_metadata.version' data/registry.json)
+          if [ "$LATEST_VERSION" -gt 1 ]; then
+            PREV_FILE="data/versions/$((LATEST_VERSION - 1)).json"
+            PREV_HASH=$(jq -r '.registry_metadata.document_hash' "$PREV_FILE")
+            CHAIN_HASH=$(jq -r '.registry_metadata.prev_document_hash' data/registry.json)
+            if [ "$PREV_HASH" != "$CHAIN_HASH" ]; then
+              echo "::error::Hash chain broken: prev_document_hash=$CHAIN_HASH, expected=$PREV_HASH"
+              exit 1
+            fi
+            echo "Hash chain verified: v$((LATEST_VERSION - 1)) -> v${LATEST_VERSION}"
+          else
+            echo "Genesis document — no chain to verify"
+          fi
+
+      - name: Skip — registry files not changed
+        if: steps.check.outputs.changed == 'false'
+        run: echo "registry files not modified — skipping verification"

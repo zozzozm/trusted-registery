@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.backup*
+data/draft-*.json
+data/*.audit.jsonl
+*.log
+coverage/
+.claude/settings.local.json

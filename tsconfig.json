@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "ES2021",
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "skipLibCheck": true,
+    "strict": false,
+    "typeRoots": ["node_modules/@types"]
+  },
+  "include": ["src/**/*", "scripts/**/*", "test/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

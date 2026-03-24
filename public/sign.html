@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MPC Registry — Admin Dashboard</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace; background: #0d1117; color: #c9d1d9; padding: 2rem; max-width: 1600px; margin: 0 auto; }
+    h1 { color: #58a6ff; margin-bottom: 0.5rem; font-size: 1.5rem; }
+    .subtitle { color: #8b949e; margin-bottom: 2rem; font-size: 0.9rem; }
+    .section { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; }
+    .section h2 { color: #58a6ff; font-size: 1rem; margin-bottom: 0.75rem; }
+    .section.done { border-color: #238636; }
+    .section.error { border-color: #da3633; }
+    button { background: #238636; color: #fff; border: none; padding: 0.5rem 1.2rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem; font-family: inherit; margin-right: 0.5rem; margin-bottom: 0.5rem; }
+    button:hover { background: #2ea043; }
+    button:disabled { background: #21262d; color: #484f58; cursor: not-allowed; }
+    button.secondary { background: #30363d; }
+    button.secondary:hover { background: #484f58; }
+    button.danger { background: #da3633; }
+    button.danger:hover { background: #f85149; }
+    button.purple { background: #8957e5; }
+    button.purple:hover { background: #a371f7; }
+    button.warning-btn { background: #d29922; }
+    button.warning-btn:hover { background: #e3b341; }
+    .info { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; margin-top: 0.75rem; font-size: 0.85rem; word-break: break-all; }
+    .info label { color: #8b949e; display: block; margin-bottom: 0.25rem; font-size: 0.75rem; text-transform: uppercase; }
+    .info .value { color: #c9d1d9; }
+    .success { color: #3fb950; }
+    .error-text { color: #f85149; }
+    .warning { color: #d29922; }
+    .sig-list { margin-top: 0.5rem; }
+    .sig-item { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.5rem 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; }
+    .sig-item .addr { color: #58a6ff; }
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 12px; font-size: 0.75rem; margin-left: 0.5rem; }
+    .badge-ok { background: #238636; color: #fff; }
+    .badge-active { background: #1f6feb; color: #fff; }
+    .badge-revoked { background: #da3633; color: #fff; }
+    .badge-warning { background: #d29922; color: #fff; }
+    .badge-role { background: #8957e5; color: #fff; }
+    .hidden { display: none; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 1px solid #30363d; }
+    .tab { padding: 0.5rem 1rem; cursor: pointer; color: #8b949e; border-bottom: 2px solid transparent; font-size: 0.9rem; }
+    .tab.active { color: #58a6ff; border-bottom-color: #58a6ff; }
+    .tab:hover { color: #c9d1d9; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+    input, select { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.5rem; color: #c9d1d9; font-family: inherit; font-size: 0.85rem; width: 100%; margin-bottom: 0.5rem; }
+    input:focus, select:focus { outline: none; border-color: #58a6ff; }
+    input[type="checkbox"] { width: auto; margin-right: 0.5rem; }
+    .form-group { margin-bottom: 0.75rem; }
+    .form-group label { color: #8b949e; font-size: 0.8rem; display: block; margin-bottom: 0.25rem; }
+    .form-group.inline { display: flex; align-items: center; }
+    .form-group.inline label { margin-bottom: 0; margin-right: 0.5rem; }
+    .node-list { margin-top: 0.5rem; }
+    .node-item { background: #0d1117; border: 1px solid #30363d; border-radius: 4px; padding: 0.75rem; margin-top: 0.5rem; font-size: 0.8rem; }
+    .mono { font-family: monospace; font-size: 0.8rem; }
+    .row { display: flex; gap: 0.5rem; }
+    .row > * { flex: 1; }
+    .msg { padding: 0.5rem 0.75rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.85rem; }
+    .msg-success { background: #0d2818; border: 1px solid #238636; }
+    .msg-error { background: #2d1214; border: 1px solid #da3633; }
+    .role-group { border: 1px solid #30363d; border-radius: 6px; padding: 0.75rem; margin-top: 0.5rem; background: #0d1117; }
+    .role-group h3 { color: #a371f7; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .quorum-bar { display: flex; align-items: center; gap: 0.5rem; font-size: 0.8rem; margin-top: 0.25rem; }
+    .quorum-fill { height: 6px; border-radius: 3px; background: #238636; }
+    .quorum-track { height: 6px; border-radius: 3px; background: #30363d; flex: 1; overflow: hidden; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 1.5rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto; }
+    .modal h3 { color: #58a6ff; margin-bottom: 1rem; }
+    .modal-close { float: right; background: none; border: none; color: #8b949e; font-size: 1.2rem; cursor: pointer; padding: 0; margin: 0; }
+    .modal-close:hover { color: #c9d1d9; }
+    .node-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; margin-top: 0.5rem; }
+    .node-actions button { font-size: 0.75rem; padding: 0.25rem 0.75rem; margin: 0; }
+    .split-panel { display: flex; gap: 1rem; align-items: flex-start; }
+    .split-left { flex: 1; min-width: 0; }
+    .split-right { flex: 1; min-width: 0; position: sticky; top: 1rem; max-height: calc(100vh - 2rem); overflow-y: auto; }
+    .json-preview { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; padding: 0; font-family: monospace; font-size: 0.75rem; color: #c9d1d9; line-height: 1.5; overflow: hidden; }
+    .json-preview .json-key { color: #79c0ff; }
+    .json-preview .json-string { color: #a5d6ff; }
+    .json-preview .json-number { color: #d2a8ff; }
+    .json-preview .json-bool { color: #ff7b72; }
+    .json-preview .json-null { color: #8b949e; }
+    .diff-line { padding: 0 0.75rem; white-space: pre-wrap; word-break: break-all; }
+    .diff-added { background: #0d2818; border-left: 3px solid #238636; }
+    .diff-removed { background: #2d1214; border-left: 3px solid #da3633; text-decoration: line-through; opacity: 0.7; }
+    .diff-unchanged { border-left: 3px solid transparent; }
+    .diff-section { background: #161b22; color: #8b949e; padding: 0.25rem 0.75rem; font-size: 0.7rem; border-left: 3px solid #30363d; }
+    @media (max-width: 1000px) {
+      .split-panel { flex-direction: column; }
+      .split-right { position: static; max-height: none; }
+    }
+  </style>
+</head>
+<body>
+  <h1>MPC Registry Admin Dashboard</h1>
+  <p class="subtitle">Manage nodes, sign and publish registry documents</p>
+
+  <!-- Connect Wallet -->
+  <div class="section" id="sec-connect">
+    <h2>Wallet</h2>
+    <button id="btn-connect" onclick="connectWallet()">Connect MetaMask</button>
+    <span id="wallet-display" class="hidden" style="font-size: 0.85rem;">
+      <span class="mono" id="wallet-address"></span>
+      <span id="wallet-roles"></span>
+    </span>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <div class="tab active" onclick="switchTab('manage')">Manage</div>
+    <div class="tab" onclick="switchTab('sign')">Sign & Publish</div>
+    <div class="tab" onclick="switchTab('history')">History</div>
+  </div>
+
+  <!-- Tab: Manage -->
+  <div id="tab-manage" class="tab-content active">
+  <div class="split-panel">
+  <div class="split-left">
+
+    <!-- Registry & Draft Status -->
+    <div class="section">
+      <h2>Registry</h2>
+      <div id="current-info" class="hidden" style="display:flex; gap:1rem; flex-wrap:wrap; font-size:0.85rem; margin-bottom:0.75rem;">
+        <span><strong>Published:</strong> <span id="cur-version"></span></span>
+        <span><strong>Nodes:</strong> <span id="cur-nodes"></span></span>
+        <span><strong>Expires:</strong> <span id="cur-expires"></span></span>
+      </div>
+      <div id="manage-draft-info" class="hidden" style="font-size:0.85rem; margin-bottom:0.75rem; padding:0.5rem 0.75rem; background:#0d2818; border:1px solid #238636; border-radius:4px;">
+        <strong class="warning">Draft <span id="mgmt-draft-version"></span></strong> &mdash;
+        <span id="mgmt-draft-nodes"></span> &middot;
+        <span class="mono" style="font-size:0.75rem;" id="mgmt-draft-hash"></span>
+      </div>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <button class="secondary" onclick="loadCurrent()">Refresh</button>
+        <button onclick="createDraft()">Create New Draft</button>
+        <button class="secondary" onclick="fetchDraft()">Load Document</button>
+        <button class="danger" onclick="deleteDraft()">Delete Draft</button>
+      </div>
+      <div id="draft-msg"></div>
+    </div>
+    <!-- hidden elements for JS compatibility -->
+    <div class="hidden" id="cur-governance"></div>
+    <div class="hidden" id="cur-ceremony-config"></div>
+    <div class="hidden" id="cur-infrastructure"></div>
+    <div class="hidden" id="cur-immutable-policies"></div>
+    <div class="hidden" id="cur-endpoints"></div>
+    <div class="hidden" id="mgmt-draft-governance"></div>
+    <div class="hidden" id="mgmt-draft-ceremony-config"></div>
+    <div class="hidden" id="mgmt-draft-endpoints"></div>
+    <div class="hidden" id="mgmt-draft-sigs"></div>
+
+    <!-- Governance & Infrastructure -->
+    <div class="section">
+      <h2>Governance & Infrastructure</h2>
+
+      <!-- Governance Roles -->
+      <div style="margin-bottom:1.5rem;">
+        <h3 style="color:#a371f7; font-size:0.9rem; margin-bottom:0.5rem;">Governance Roles</h3>
+        <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+          SYSTEM_ADMIN can only be modified. Other roles can be added via dropdown.
+        </p>
+        <div id="governance-roles-display"></div>
+        <div style="margin-top:1rem; border-top: 1px solid #30363d; padding-top:1rem;">
+          <h3 style="color:#8b949e; font-size:0.85rem; margin-bottom:0.75rem;">Add / Update Role</h3>
+          <div class="form-group">
+            <label>Role</label>
+            <select id="gov-role-name">
+              <option value="SYSTEM_ADMIN">SYSTEM_ADMIN (modify only)</option>
+              <option value="POLICY_COMPLIANCE">POLICY_COMPLIANCE</option>
+              <option value="TREASURY_OPS">TREASURY_OPS</option>
+              <option value="AUDIT_OBSERVER">AUDIT_OBSERVER</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Display Name</label>
+            <input id="gov-display-name" placeholder="e.g. System Administrators">
+          </div>
+          <div id="gov-addr-inputs">
+            <div class="form-group">
+              <label>Address 0</label>
+              <input class="gov-addr-input" placeholder="0x...">
+            </div>
+          </div>
+          <button class="secondary" onclick="addGovAddrInput()">+ Add Address</button>
+          <div class="form-group" style="margin-top:0.5rem;">
+            <label>Quorum</label>
+            <input id="gov-quorum" type="number" min="1" value="2">
+          </div>
+          <div class="form-group">
+            <label>Features (comma-separated, optional)</label>
+            <input id="gov-features" placeholder="e.g. sign, publish, enroll">
+          </div>
+          <button class="purple" onclick="proposeGovernanceRole()">Propose Role</button>
+          <div id="governance-msg"></div>
+        </div>
+      </div>
+
+      <!-- Trusted Infrastructure -->
+      <div style="border-top: 1px solid #30363d; padding-top:1rem;">
+        <h3 style="color:#a371f7; font-size:0.9rem; margin-bottom:0.5rem;">Trusted Infrastructure</h3>
+        <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+          Configure trusted infrastructure addresses and binary hashes.
+        </p>
+        <div class="form-group">
+          <label>Backoffice Service Address (optional)</label>
+          <input id="infra-backoffice" placeholder="0x...">
+        </div>
+        <div class="form-group">
+          <label>Market Oracle Address (optional)</label>
+          <input id="infra-oracle" placeholder="0x...">
+        </div>
+        <div id="infra-hash-inputs">
+          <div class="form-group">
+            <label>Trusted Binary Hash 0</label>
+            <input class="infra-hash-input" placeholder="sha256 hex hash">
+          </div>
+        </div>
+        <button class="secondary" onclick="addInfraHashInput()">+ Add Hash</button>
+        <button class="purple" onclick="proposeInfrastructure()">Propose Infrastructure</button>
+        <div id="infrastructure-msg"></div>
+      </div>
+    </div>
+
+    <!-- Configuration -->
+    <div class="section">
+      <h2>Configuration</h2>
+
+      <!-- Ceremony Config -->
+      <div style="margin-bottom:1.5rem;">
+        <h3 style="color:#a371f7; font-size:0.9rem; margin-bottom:0.5rem;">Ceremony Config</h3>
+        <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+          Configure MPC ceremony parameters.
+        </p>
+        <div class="form-group">
+          <label>Global Threshold (t)</label>
+          <input id="cc-global-threshold" type="number" min="2" value="2">
+        </div>
+        <div class="form-group">
+          <label>Max Participants (n)</label>
+          <input id="cc-max-participants" type="number" min="2" value="9">
+        </div>
+        <div class="form-group">
+          <label>Allowed Curves (comma-separated)</label>
+          <input id="cc-curves" placeholder="Secp256k1, Ed25519" value="Secp256k1, Ed25519">
+        </div>
+        <div class="form-group">
+          <label>Allowed Protocols (comma-separated)</label>
+          <input id="cc-protocols" placeholder="CGGMP21, FROST" value="CGGMP21, FROST">
+        </div>
+        <button class="purple" onclick="proposeCeremonyConfig()">Propose Config</button>
+        <div id="ceremony-config-msg"></div>
+      </div>
+
+      <!-- Immutable Policies -->
+      <div style="border-top: 1px solid #30363d; padding-top:1rem; margin-bottom:1.5rem;">
+        <h3 style="color:#a371f7; font-size:0.9rem; margin-bottom:0.5rem;">Immutable Policies</h3>
+        <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+          Set immutable policy constraints for the registry.
+        </p>
+        <div class="form-group">
+          <label>Max Withdrawal USD (24h)</label>
+          <input id="policy-max-withdrawal" type="number" min="0" placeholder="e.g. 100000">
+        </div>
+        <div class="form-group inline">
+          <input type="checkbox" id="policy-require-oracle">
+          <label for="policy-require-oracle">Require Oracle Price</label>
+        </div>
+        <div class="form-group inline">
+          <input type="checkbox" id="policy-enforce-whitelist">
+          <label for="policy-enforce-whitelist">Enforce Whitelist</label>
+        </div>
+        <button class="purple" onclick="proposeImmutablePolicies()">Propose Policies</button>
+        <div id="immutable-policies-msg"></div>
+      </div>
+
+      <!-- Endpoints -->
+      <div style="border-top: 1px solid #30363d; padding-top:1rem;">
+        <h3 style="color:#a371f7; font-size:0.9rem; margin-bottom:0.5rem;">Registry Endpoints</h3>
+        <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+          Set the primary URL and mirror URLs where clients fetch the registry document.
+        </p>
+        <div class="form-group">
+          <label>Primary URL</label>
+          <input id="propose-primary-url" placeholder="https://raw.githubusercontent.com/...">
+        </div>
+        <div id="mirror-inputs">
+          <div class="form-group">
+            <label>Mirror 0</label>
+            <input class="mirror-url-input" placeholder="https://...">
+          </div>
+        </div>
+        <button class="secondary" onclick="addMirrorInput()">+ Add Mirror</button>
+        <button class="purple" onclick="proposeEndpoints()">Propose Endpoints</button>
+        <div id="endpoints-msg"></div>
+      </div>
+    </div>
+
+    <!-- Nodes -->
+    <div class="section">
+      <h2>Nodes</h2>
+      <div style="border-bottom: 1px solid #30363d; padding-bottom: 1rem; margin-bottom: 1rem;">
+        <h3 style="color:#a371f7; font-size:0.9rem; margin-bottom:0.75rem;">Enroll New Node</h3>
+        <div class="form-group">
+          <label>Identity Public Key (ikPub) -- 64 hex chars</label>
+          <input id="enroll-ikpub" placeholder="0a1b2c...">
+        </div>
+        <div class="form-group">
+          <label>Ephemeral Public Key (ekPub) -- 64 hex chars</label>
+          <input id="enroll-ekpub" placeholder="0a1b2c...">
+        </div>
+        <div class="row">
+          <div class="form-group">
+            <label>Role</label>
+            <select id="enroll-role">
+              <option value="USER_COSIGNER">USER_COSIGNER</option>
+              <option value="PROVIDER_COSIGNER">PROVIDER_COSIGNER</option>
+              <option value="RECOVERY_GUARDIAN">RECOVERY_GUARDIAN</option>
+            </select>
+          </div>
+        </div>
+        <button onclick="enrollNode()">Propose Enrollment</button>
+        <div id="enroll-msg"></div>
+      </div>
+      <button class="secondary" onclick="refreshNodeList()">Refresh</button>
+      <div id="node-list" class="node-list"></div>
+    </div>
+  </div><!-- end split-left -->
+
+  <!-- JSON Preview -->
+  <div class="split-right">
+    <div class="section" style="position:sticky; top:0;">
+      <h2>JSON Preview</h2>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.75rem;">
+        <span id="json-preview-label" style="font-size:0.8rem; color:#8b949e;">Showing: current registry</span>
+        <label style="font-size:0.8rem; color:#8b949e; cursor:pointer; display:flex; align-items:center; gap:0.25rem;">
+          <input type="checkbox" id="diff-highlight-toggle" checked onchange="updateJsonPreview()" style="width:auto; margin:0;">
+          Show diff
+        </label>
+      </div>
+      <div id="json-preview" class="json-preview" style="max-height: calc(100vh - 10rem); overflow-y: auto;">
+        <span style="color:#8b949e;">Connect wallet to load registry...</span>
+      </div>
+    </div>
+  </div><!-- end split-right -->
+
+  </div><!-- end split-panel -->
+  </div>
+
+  <!-- Tab: Sign & Publish -->
+  <div id="tab-sign" class="tab-content">
+
+    <!-- Fetch Draft -->
+    <div class="section" id="sec-sign-draft">
+      <h2>1. Pending Draft</h2>
+      <button onclick="fetchDraftForSign()">Load Document Draft</button>
+      <div id="sign-draft-info" class="info hidden">
+        <label>Registry ID</label>
+        <div class="value" id="draft-registry"></div>
+        <label style="margin-top:0.5rem;">Version</label>
+        <div class="value" id="draft-version"></div>
+        <label style="margin-top:0.5rem;">Nodes</label>
+        <div class="value" id="draft-nodes-count"></div>
+        <label style="margin-top:0.5rem;">Governance Roles</label>
+        <div class="value" id="draft-governance"></div>
+        <label style="margin-top:0.5rem;">Ceremony Config</label>
+        <div class="value" id="draft-ceremony-config"></div>
+        <label style="margin-top:0.5rem;">Endpoints</label>
+        <div class="value" id="draft-endpoints"></div>
+        <label style="margin-top:0.5rem;">Document Hash</label>
+        <div class="value mono" id="draft-hash"></div>
+        <label style="margin-top:0.5rem;">Merkle Root</label>
+        <div class="value mono" id="draft-merkle"></div>
+      </div>
+    </div>
+
+    <!-- Sign -->
+    <div class="section" id="sec-sign">
+      <h2>2. Sign Document</h2>
+      <p style="font-size:0.85rem; color:#8b949e; margin-bottom:0.75rem;">
+        Select which role you are signing as. MetaMask will display the message. Verify the document hash before approving.
+      </p>
+      <div class="form-group">
+        <label>Sign as Role</label>
+        <select id="sign-role-select" disabled>
+          <option value="">-- connect wallet and fetch draft first --</option>
+        </select>
+      </div>
+      <button id="btn-sign" onclick="signDoc()" disabled>Sign with MetaMask</button>
+      <div id="sign-info" class="info hidden">
+        <label>Signature</label>
+        <div class="value mono" id="sign-result"></div>
+      </div>
+    </div>
+
+    <!-- Submit Signature -->
+    <div class="section" id="sec-submit">
+      <h2>3. Submit Signature</h2>
+      <button id="btn-submit" onclick="submitSig()" disabled>Submit to Server</button>
+      <div id="submit-msg"></div>
+    </div>
+
+    <!-- Signature Status -->
+    <div class="section" id="sec-status">
+      <h2>Signature Status</h2>
+      <div id="sig-status"><span class="warning">No draft loaded</span></div>
+      <div id="sig-list" class="sig-list"></div>
+    </div>
+
+    <!-- Verify & Publish -->
+    <div class="section" id="sec-publish">
+      <h2>4. Verify & Publish</h2>
+      <button id="btn-verify" onclick="verifyDoc()" disabled>Verify Document</button>
+      <button id="btn-publish" class="purple" onclick="publishDoc()" disabled>Publish</button>
+      <div id="verify-info" class="info hidden">
+        <div id="verify-result"></div>
+      </div>
+      <div id="publish-msg"></div>
+    </div>
+  </div>
+
+  <!-- Tab: History -->
+  <div id="tab-history" class="tab-content">
+    <div class="section">
+      <h2>Version History</h2>
+      <p style="color:#8b949e; font-size:0.85rem; margin-bottom:0.75rem;">Browse all published registry versions stored in the version chain.</p>
+      <button class="secondary" onclick="loadVersionHistory()">Refresh</button>
+      <div id="version-list" style="margin-top: 1rem;"></div>
+    </div>
+    <div class="section">
+      <h2>Version Detail</h2>
+      <div class="row">
+        <div class="form-group">
+          <label>Version Number</label>
+          <input id="version-number" type="number" min="1" placeholder="e.g. 14">
+        </div>
+      </div>
+      <button class="secondary" onclick="loadVersionDetail()">Load Version</button>
+      <div id="version-detail" class="info hidden"></div>
+    </div>
+    <div class="section">
+      <h2>Chain Integrity</h2>
+      <p style="color:#8b949e; font-size:0.85rem; margin-bottom:0.75rem;">Verify the hash chain across all available versions.</p>
+      <button class="secondary" onclick="verifyChain()">Verify Chain</button>
+      <div id="chain-result"></div>
+    </div>
+  </div>
+
+  <!-- Modal container -->
+  <div id="modal-container"></div>
+
+  <script>
+    const API = '/api/registry'
+    let account = null
+    let draft = null
+    let signature = null
+    let currentDoc = null      // the currently published document (for chain-of-trust quorum check)
+    let governanceRoles = []   // [{role, display_name, addresses[], quorum, features}]
+    let walletRoles = []       // roles the connected wallet belongs to
+
+    // ── Tabs ──────────────────────────────────────────────────────────────
+    function switchTab(name) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'))
+      document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'))
+      document.querySelector(`.tab-content#tab-${name}`).classList.add('active')
+      const idx = { manage: 0, sign: 1, history: 2 }[name] ?? 0
+      document.querySelectorAll('.tab')[idx].classList.add('active')
+      if (name === 'history') loadVersionHistory()
+    }
+
+    // ── Wallet ────────────────────────────────────────────────────────────
+    async function connectWallet() {
+      if (!window.ethereum) { alert('MetaMask not installed'); return }
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+        account = accounts[0]
+        document.getElementById('wallet-address').textContent = account
+        document.getElementById('wallet-display').classList.remove('hidden')
+        document.getElementById('btn-connect').textContent = 'Connected'
+        document.getElementById('btn-connect').disabled = true
+        document.getElementById('sec-connect').classList.add('done')
+
+        const health = await fetch(`${API}/health`).then(r => r.json())
+
+        // Parse governance roles from health endpoint
+        // Health returns governance_roles with addresses as [{index, address}] — normalize to plain strings
+        governanceRoles = (health.governance_roles || []).map(r => ({
+          ...r,
+          addresses: r.addresses ? r.addresses.map(a => typeof a === 'object' ? a.address : a) : []
+        }))
+        walletRoles = detectWalletRoles(account)
+        renderWalletRoles()
+
+        if (health.pendingGenesis) {
+          switchTab('sign')
+        }
+
+        document.getElementById('btn-sign').disabled = false
+
+        window.ethereum.on('accountsChanged', (accs) => {
+          if (accs.length === 0) { location.reload(); return }
+          account = accs[0]
+          document.getElementById('wallet-address').textContent = account
+          walletRoles = detectWalletRoles(account)
+          renderWalletRoles()
+          populateSignRoleDropdown()
+        })
+
+        await loadCurrent()
+      } catch (e) { alert('Connect failed: ' + e.message) }
+    }
+
+    function detectWalletRoles(addr) {
+      if (!addr) return []
+      const lower = addr.toLowerCase()
+      // Use published doc's roles if available (chain-of-trust), else fall back to health's roles
+      const roles = currentDoc ? docGovernanceRoles(currentDoc) : governanceRoles
+      if (!roles || !roles.length) return []
+      return roles
+        .filter(r => r.addresses && r.addresses.some(a => a.toLowerCase() === lower))
+        .map(r => r.role)
+    }
+
+    function renderWalletRoles() {
+      const el = document.getElementById('wallet-roles')
+      if (walletRoles.length > 0) {
+        el.innerHTML = walletRoles.map(r =>
+          ` <span class="badge badge-role">${r}</span>`
+        ).join('')
+      } else {
+        el.innerHTML = ' <span class="badge badge-revoked">No Role</span>'
+      }
+    }
+
+    // ── Governance Rendering Helpers ──────────────────────────────────────
+    function renderGovernanceRoles(roles) {
+      if (!roles || !roles.length) return '<span style="color:#8b949e;">(none)</span>'
+      return roles.map(r => {
+        const addrs = (r.addresses || []).map(a =>
+          `<div class="mono" style="font-size:0.75rem; padding-left:1rem;">${a}</div>`
+        ).join('')
+        const features = r.features && r.features.length ? ` | Features: ${r.features.join(', ')}` : ''
+        return `<div class="role-group">
+          <h3>${r.role} <span style="color:#8b949e; font-size:0.75rem;">(${r.display_name || r.role})</span></h3>
+          <div style="font-size:0.8rem;">Quorum: ${r.quorum}${features}</div>
+          <div style="font-size:0.8rem; margin-top:0.25rem;">Addresses (${(r.addresses || []).length}):</div>
+          ${addrs}
+        </div>`
+      }).join('')
+    }
+
+    function renderCeremonyConfig(cc) {
+      if (!cc) return '<span style="color:#8b949e;">(not set)</span>'
+      return `<div style="font-size:0.8rem;">Global Threshold (t): ${cc.global_threshold_t ?? '?'}</div>` +
+             `<div style="font-size:0.8rem;">Max Participants (n): ${cc.max_participants_n ?? '?'}</div>` +
+             `<div style="font-size:0.8rem;">Curves: [${(cc.allowed_curves || []).join(', ')}]</div>` +
+             `<div style="font-size:0.8rem;">Protocols: [${(cc.allowed_protocols || []).join(', ')}]</div>`
+    }
+
+    function renderInfrastructure(infra) {
+      if (!infra) return '<span style="color:#8b949e;">(not set)</span>'
+      let html = ''
+      if (infra.backoffice_pubkey) {
+        html += `<div class="mono" style="font-size:0.8rem;">Backoffice: ${infra.backoffice_pubkey}</div>`
+      }
+      if (infra.market_oracle_pubkey) {
+        html += `<div class="mono" style="font-size:0.8rem;">Oracle: ${infra.market_oracle_pubkey}</div>`
+      }
+      if (infra.trusted_binary_hashes && infra.trusted_binary_hashes.length) {
+        html += `<div style="font-size:0.8rem;">Binary Hashes (${infra.trusted_binary_hashes.length}):</div>`
+        html += infra.trusted_binary_hashes.map(h =>
+          `<div class="mono" style="font-size:0.75rem; padding-left:1rem;">${h}</div>`
+        ).join('')
+      }
+      return html || '<span style="color:#8b949e;">(empty)</span>'
+    }
+
+    function renderImmutablePolicies(pol) {
+      if (!pol) return '<span style="color:#8b949e;">(not set)</span>'
+      return `<div style="font-size:0.8rem;">Max Withdrawal USD (24h): ${pol.max_withdrawal_usd_24h ?? '?'}</div>` +
+             `<div style="font-size:0.8rem;">Require Oracle Price: ${pol.require_oracle_price ? 'Yes' : 'No'}</div>` +
+             `<div style="font-size:0.8rem;">Enforce Whitelist: ${pol.enforce_whitelist ? 'Yes' : 'No'}</div>`
+    }
+
+    function renderEndpoints(ep) {
+      if (!ep) return '<span style="color:#8b949e;">(not set)</span>'
+      let html = `<div class="mono" style="font-size:0.8rem;">Primary: ${ep.primary}</div>`
+      if (ep.mirrors && ep.mirrors.length) {
+        html += ep.mirrors.map((m, i) => `<div class="mono" style="font-size:0.8rem;">Mirror ${i}: ${m}</div>`).join('')
+      }
+      if (ep.updated_at) {
+        html += `<div style="font-size:0.75rem; color:#8b949e;">Updated: ${ep.updated_at}</div>`
+      }
+      return html
+    }
+
+    // ── Accessors for nested document structure ──────────────────────────
+    function docVersion(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.version : doc.version
+    }
+    function docRegistryId(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.registry_id : doc.registry_id
+    }
+    function docExpiresAt(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.expires_at : doc.expires_at
+    }
+    function docIssuedAt(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.issued_at : doc.issued_at
+    }
+    function docEndpoints(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.endpoints : doc.endpoints
+    }
+    function docDocumentHash(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.document_hash : doc.document_hash
+    }
+    function docPrevDocumentHash(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.prev_document_hash : doc.prev_document_hash
+    }
+    function docMerkleRoot(doc) {
+      return doc.registry_metadata ? doc.registry_metadata.merkle_root : doc.merkle_root
+    }
+    function docGovernanceRoles(doc) {
+      return doc.governance ? doc.governance.roles : []
+    }
+    function docCeremonyConfig(doc) {
+      return doc.ceremony_config || null
+    }
+    function docInfrastructure(doc) {
+      return doc.trusted_infrastructure || null
+    }
+    function docImmutablePolicies(doc) {
+      return doc.immutable_policies || null
+    }
+    function docNodes(doc) {
+      return doc.nodes || []
+    }
+    function docSignatures(doc) {
+      return doc.signatures || []
+    }
+
+    // ── Current Registry ──────────────────────────────────────────────────
+    async function loadCurrent() {
+      try {
+        const res = await fetch(`${API}/current`)
+        if (!res.ok) {
+          document.getElementById('current-info').classList.add('hidden')
+          return
+        }
+        const doc = await res.json()
+        currentDoc = doc  // store for chain-of-trust quorum check
+        document.getElementById('cur-version').textContent = 'v' + docVersion(doc)
+        const nodes = docNodes(doc)
+        document.getElementById('cur-nodes').textContent = nodes.length + ' (' + nodes.filter(n => n.status === 'ACTIVE').length + ' active)'
+        document.getElementById('cur-governance').innerHTML = renderGovernanceRoles(docGovernanceRoles(doc))
+        document.getElementById('cur-ceremony-config').innerHTML = renderCeremonyConfig(docCeremonyConfig(doc))
+        document.getElementById('cur-infrastructure').innerHTML = renderInfrastructure(docInfrastructure(doc))
+        document.getElementById('cur-immutable-policies').innerHTML = renderImmutablePolicies(docImmutablePolicies(doc))
+        document.getElementById('cur-endpoints').innerHTML = renderEndpoints(docEndpoints(doc))
+        document.getElementById('cur-expires').textContent = new Date(docExpiresAt(doc) * 1000).toLocaleString()
+        document.getElementById('current-info').classList.remove('hidden')
+
+        // Re-detect wallet roles now that currentDoc is loaded (chain-of-trust source)
+        if (account) {
+          walletRoles = detectWalletRoles(account)
+          renderWalletRoles()
+          populateSignRoleDropdown()
+        }
+
+        // Auto-load all form fields from current registry
+        autoPopulateFromCurrent(doc)
+
+        // Auto-load nodes
+        loadNodes()
+        updateJsonPreview()
+      } catch {}
+    }
+
+    function autoPopulateFromCurrent(doc) {
+      // Governance roles display
+      const roles = docGovernanceRoles(doc)
+      const display = document.getElementById('governance-roles-display')
+      display.innerHTML = renderGovernanceRoles(roles)
+
+      // Ceremony Config
+      const cc = docCeremonyConfig(doc) || {}
+      document.getElementById('cc-curves').value = (cc.allowed_curves || []).join(', ')
+      document.getElementById('cc-protocols').value = (cc.allowed_protocols || []).join(', ')
+      document.getElementById('cc-global-threshold').value = cc.global_threshold_t ?? 2
+      document.getElementById('cc-max-participants').value = cc.max_participants_n ?? 9
+
+      // Trusted Infrastructure
+      const infra = docInfrastructure(doc) || {}
+      document.getElementById('infra-backoffice').value = infra.backoffice_pubkey || ''
+      document.getElementById('infra-oracle').value = infra.market_oracle_pubkey || ''
+      const hashContainer = document.getElementById('infra-hash-inputs')
+      hashContainer.innerHTML = ''
+      const hashes = infra.trusted_binary_hashes || ['']
+      if (hashes.length === 0) hashes.push('')
+      hashes.forEach((h, i) => {
+        const div = document.createElement('div')
+        div.className = 'form-group'
+        div.innerHTML = `<label>Trusted Binary Hash ${i}</label><input class="infra-hash-input" placeholder="sha256 hex hash" value="${h}">`
+        hashContainer.appendChild(div)
+      })
+
+      // Immutable Policies
+      const pol = docImmutablePolicies(doc) || {}
+      document.getElementById('policy-max-withdrawal').value = pol.max_withdrawal_usd_24h ?? ''
+      document.getElementById('policy-require-oracle').checked = !!pol.require_oracle_price
+      document.getElementById('policy-enforce-whitelist').checked = !!pol.enforce_whitelist
+
+      // Endpoints
+      const ep = docEndpoints(doc)
+      document.getElementById('propose-primary-url').value = ep?.primary || ''
+      const mirrorContainer = document.getElementById('mirror-inputs')
+      mirrorContainer.innerHTML = ''
+      const mirrors = ep?.mirrors || ['']
+      if (mirrors.length === 0) mirrors.push('')
+      mirrors.forEach((m, i) => {
+        const div = document.createElement('div')
+        div.className = 'form-group'
+        div.innerHTML = `<label>Mirror ${i}</label><input class="mirror-url-input" placeholder="https://..." value="${m}">`
+        mirrorContainer.appendChild(div)
+      })
+    }
+
+    // ── Draft Management ──────────────────────────────────────────────────
+    async function createDraft() {
+      try {
+        // Ensure currentDoc is loaded for NEW/MODIFIED badge comparison
+        if (!currentDoc) await loadCurrent()
+        console.log('[createDraft] currentDoc:', currentDoc ? 'v' + docVersion(currentDoc) + ' with ' + docNodes(currentDoc).length + ' nodes' : 'NULL')
+        const res = await fetch(`${API}/pending`, { method: 'POST' })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          console.log('[createDraft] draft nodes:', docNodes(draft).length, 'currentDoc nodes:', currentDoc ? docNodes(currentDoc).length : 0)
+          showMsg('draft-msg', 'Draft created (v' + docVersion(result) + ')', true)
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+        } else {
+          showMsg('draft-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('draft-msg', e.message, false) }
+    }
+
+    async function fetchDraft() {
+      try {
+        if (!currentDoc) await loadCurrent()
+        const res = await fetch(`${API}/pending`)
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('draft-msg', 'Pending draft loaded (v' + docVersion(result) + ')', true)
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+        } else {
+          // No pending draft — load published document instead
+          draft = null
+          document.getElementById('manage-draft-info').classList.add('hidden')
+          if (!currentDoc) await loadCurrent()
+          if (currentDoc) {
+            showMsg('draft-msg', 'No pending draft. Showing published v' + docVersion(currentDoc), true)
+            refreshNodeList()
+            updateJsonPreview()
+          } else {
+            showMsg('draft-msg', 'No document found. Use "Create New Draft" to start.', false)
+          }
+        }
+      } catch (e) { showMsg('draft-msg', e.message, false) }
+    }
+
+    async function deleteDraft() {
+      if (!confirm('Delete the pending draft?')) return
+      try {
+        const res = await fetch(`${API}/pending`, { method: 'DELETE' })
+        if (res.ok) {
+          draft = null
+          showMsg('draft-msg', 'Draft deleted', true)
+          document.getElementById('manage-draft-info').classList.add('hidden')
+          updateJsonPreview()
+          refreshNodeList()
+        } else {
+          showMsg('draft-msg', 'Failed to delete', false)
+        }
+      } catch (e) { showMsg('draft-msg', e.message, false) }
+    }
+
+    function showDraftInfo() {
+      if (!draft) return
+      document.getElementById('mgmt-draft-version').textContent = 'v' + docVersion(draft)
+      document.getElementById('mgmt-draft-nodes').textContent = docNodes(draft).length + ' node(s)'
+      document.getElementById('mgmt-draft-governance').innerHTML = renderGovernanceRoles(docGovernanceRoles(draft))
+      document.getElementById('mgmt-draft-ceremony-config').innerHTML = renderCeremonyConfig(docCeremonyConfig(draft))
+      document.getElementById('mgmt-draft-endpoints').innerHTML = renderEndpoints(docEndpoints(draft))
+      document.getElementById('mgmt-draft-hash').textContent = docDocumentHash(draft)
+      document.getElementById('mgmt-draft-sigs').innerHTML = renderSignatureQuorum(docSignatures(draft), docGovernanceRoles(draft))
+      document.getElementById('manage-draft-info').classList.remove('hidden')
+      populateFormsFromDraft()
+      updateJsonPreview()
+    }
+
+    function populateFormsFromDraft() {
+      if (!draft) return
+      // Ceremony Config
+      const cc = docCeremonyConfig(draft) || {}
+      document.getElementById('cc-curves').value = (cc.allowed_curves || []).join(', ')
+      document.getElementById('cc-protocols').value = (cc.allowed_protocols || []).join(', ')
+      document.getElementById('cc-global-threshold').value = cc.global_threshold_t ?? 2
+      document.getElementById('cc-max-participants').value = cc.max_participants_n ?? 9
+      // Endpoints
+      const ep = docEndpoints(draft)
+      document.getElementById('propose-primary-url').value = ep?.primary || ''
+      const mirrorContainer = document.getElementById('mirror-inputs')
+      mirrorContainer.innerHTML = ''
+      const mirrors = ep?.mirrors || ['']
+      if (mirrors.length === 0) mirrors.push('')
+      mirrors.forEach((m, i) => {
+        const div = document.createElement('div')
+        div.className = 'form-group'
+        div.innerHTML = `<label>Mirror ${i}</label><input class="mirror-url-input" placeholder="https://..." value="${m}">`
+        mirrorContainer.appendChild(div)
+      })
+      // Infrastructure
+      const infra = docInfrastructure(draft) || {}
+      document.getElementById('infra-backoffice').value = infra.backoffice_pubkey || ''
+      document.getElementById('infra-oracle').value = infra.market_oracle_pubkey || ''
+      const hashContainer = document.getElementById('infra-hash-inputs')
+      hashContainer.innerHTML = ''
+      const hashes = infra.trusted_binary_hashes || ['']
+      if (hashes.length === 0) hashes.push('')
+      hashes.forEach((h, i) => {
+        const div = document.createElement('div')
+        div.className = 'form-group'
+        div.innerHTML = `<label>Trusted Binary Hash ${i}</label><input class="infra-hash-input" placeholder="sha256 hex hash" value="${h}">`
+        hashContainer.appendChild(div)
+      })
+      // Immutable Policies
+      const pol = docImmutablePolicies(draft) || {}
+      document.getElementById('policy-max-withdrawal').value = pol.max_withdrawal_usd_24h ?? ''
+      document.getElementById('policy-require-oracle').checked = !!pol.require_oracle_price
+      document.getElementById('policy-enforce-whitelist').checked = !!pol.enforce_whitelist
+    }
+
+    // ── Enroll ────────────────────────────────────────────────────────────
+    async function enrollNode() {
+      const ikPub = document.getElementById('enroll-ikpub').value.trim()
+      const ekPub = document.getElementById('enroll-ekpub').value.trim()
+      const role = document.getElementById('enroll-role').value
+
+      if (!ikPub || !ekPub) {
+        showMsg('enroll-msg', 'All fields are required', false); return
+      }
+
+      try {
+        const res = await fetch(`${API}/nodes/enroll`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ik_pub: ikPub, ek_pub: ekPub, role }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result.draft
+          showMsg('enroll-msg', 'Node enrolled! ID: ' + result.node_id, true)
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+          document.getElementById('enroll-ikpub').value = ''
+          document.getElementById('enroll-ekpub').value = ''
+        } else {
+          showMsg('enroll-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('enroll-msg', e.message, false) }
+    }
+
+    // ── Revoke (modal-based) ──────────────────────────────────────────────
+    async function revokeNodeFromModal(nodeId) {
+      const reason = document.getElementById('modal-revoke-reason').value.trim()
+      if (!reason) {
+        alert('Reason is required'); return
+      }
+      try {
+        const res = await fetch(`${API}/nodes/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ node_id: nodeId, reason }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          closeModal()
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+          showMsg('draft-msg', 'Revocation proposed for ' + nodeId, true)
+        } else {
+          alert(result.message || 'Failed')
+        }
+      } catch (e) { alert(e.message) }
+    }
+
+    // ── Maintenance (modal-based) ─────────────────────────────────────────
+    async function maintenanceNodeFromModal(nodeId) {
+      const reason = document.getElementById('modal-maint-reason').value.trim()
+      if (!reason) {
+        alert('Reason is required'); return
+      }
+      try {
+        const res = await fetch(`${API}/nodes/maintenance`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ node_id: nodeId, reason }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          closeModal()
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+          showMsg('draft-msg', 'Maintenance proposed for ' + nodeId, true)
+        } else {
+          alert(result.message || 'Failed')
+        }
+      } catch (e) { alert(e.message) }
+    }
+
+    // ── Reactivate (modal-based) ──────────────────────────────────────────
+    async function reactivateNodeFromModal(nodeId) {
+      try {
+        const res = await fetch(`${API}/nodes/reactivate`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ node_id: nodeId }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          closeModal()
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+          showMsg('draft-msg', 'Reactivation proposed for ' + nodeId, true)
+        } else {
+          alert(result.message || 'Failed')
+        }
+      } catch (e) { alert(e.message) }
+    }
+
+    // ── IK Rotation (modal-based) ─────────────────────────────────────────
+    async function rotateIkFromModal(nodeId) {
+      const newIkPub = document.getElementById('modal-rotate-new-ikpub').value.trim()
+      const reason = document.getElementById('modal-rotate-reason').value.trim()
+      const proof = document.getElementById('modal-rotate-proof').value.trim()
+      if (!newIkPub || !reason || !proof) {
+        alert('All fields are required'); return
+      }
+      try {
+        const res = await fetch(`${API}/nodes/rotate-ik`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ node_id: nodeId, new_ik_pub: newIkPub, reason, proof }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          closeModal()
+          showDraftInfo()
+          renderNodeListFromDoc(draft)
+          showMsg('draft-msg', 'IK rotation proposed for ' + nodeId, true)
+        } else {
+          alert(result.message || 'Failed')
+        }
+      } catch (e) { alert(e.message) }
+    }
+
+    // ── Modal System ──────────────────────────────────────────────────────
+    function openModal(html) {
+      const container = document.getElementById('modal-container')
+      container.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModal()">
+        <div class="modal">
+          <button class="modal-close" onclick="closeModal()">&times;</button>
+          ${html}
+        </div>
+      </div>`
+    }
+
+    function closeModal() {
+      document.getElementById('modal-container').innerHTML = ''
+    }
+
+    function openRevokeModal(nodeId) {
+      openModal(`
+        <h3>Revoke Node</h3>
+        <div class="form-group">
+          <label>Node ID</label>
+          <input value="${nodeId}" readonly style="opacity:0.7;">
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input id="modal-revoke-reason" placeholder="Reason for revocation">
+        </div>
+        <button class="danger" onclick="revokeNodeFromModal('${nodeId}')">Propose Revocation</button>
+      `)
+    }
+
+    function openMaintenanceModal(nodeId) {
+      openModal(`
+        <h3>Set Maintenance</h3>
+        <div class="form-group">
+          <label>Node ID</label>
+          <input value="${nodeId}" readonly style="opacity:0.7;">
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input id="modal-maint-reason" placeholder="Reason for maintenance">
+        </div>
+        <button class="warning-btn" onclick="maintenanceNodeFromModal('${nodeId}')">Set Maintenance</button>
+      `)
+    }
+
+    function openReactivateModal(nodeId) {
+      openModal(`
+        <h3>Reactivate Node</h3>
+        <div class="form-group">
+          <label>Node ID</label>
+          <input value="${nodeId}" readonly style="opacity:0.7;">
+        </div>
+        <p style="color:#8b949e; font-size:0.85rem; margin-bottom:1rem;">Are you sure you want to reactivate this node?</p>
+        <button onclick="reactivateNodeFromModal('${nodeId}')">Reactivate</button>
+      `)
+    }
+
+    function openRotateIkModal(nodeId) {
+      openModal(`
+        <h3>Rotate Identity Key</h3>
+        <div class="form-group">
+          <label>Node ID</label>
+          <input value="${nodeId}" readonly style="opacity:0.7;">
+        </div>
+        <div class="form-group">
+          <label>New IK Public Key -- 64 hex chars</label>
+          <input id="modal-rotate-new-ikpub" placeholder="0a1b2c...">
+        </div>
+        <div class="form-group">
+          <label>Reason</label>
+          <input id="modal-rotate-reason" placeholder="e.g. key compromise, scheduled rotation">
+        </div>
+        <div class="form-group">
+          <label>Ed25519 Proof (hex) -- signature over "rotate:&lt;prev&gt;:&lt;new&gt;:&lt;timestamp&gt;"</label>
+          <input id="modal-rotate-proof" placeholder="Ed25519 signature hex">
+        </div>
+        <button class="purple" onclick="rotateIkFromModal('${nodeId}')">Propose Rotation</button>
+      `)
+    }
+
+    // ── Node List ─────────────────────────────────────────────────────────
+    function refreshNodeList() {
+      if (draft) {
+        renderNodeListFromDoc(draft)
+      } else {
+        loadNodes()
+      }
+    }
+
+    function renderNodeListFromDoc(doc) {
+      const nodes = docNodes(doc)
+      // Pass currentDoc's nodes as the comparison baseline
+      const prevNodeIds = currentDoc ? docNodes(currentDoc).map(n => n.node_id) : null
+      renderNodeArray(nodes, true, prevNodeIds)
+    }
+
+    async function loadNodes() {
+      try {
+        const res = await fetch(`${API}/nodes`)
+        const nodes = await res.json()
+        renderNodeArray(nodes, false, null)
+      } catch (e) { document.getElementById('node-list').innerHTML = '<span class="error-text">' + e.message + '</span>' }
+    }
+
+    function renderNodeArray(nodes, isDraft, prevNodeIds) {
+      const el = document.getElementById('node-list')
+      if (!nodes || !nodes.length) { el.innerHTML = '<div style="color:#8b949e; margin-top:0.5rem;">No nodes</div>'; return }
+      el.innerHTML = nodes.map(n => {
+          const rotations = n.ik_rotations || []
+          const rotationHtml = rotations.length ? `
+            <div style="margin-top:0.5rem; font-size:0.75rem; color:#8b949e;">
+              <strong>IK Rotations (${rotations.length}):</strong>
+              ${rotations.map((r, i) => `
+                <div style="margin-top:0.25rem; padding-left:0.5rem; border-left:2px solid #30363d;">
+                  #${i+1}: ${r.prev_ik_pub.substring(0,12)}... -> ${r.new_ik_pub.substring(0,12)}...
+                  <br>Reason: ${r.reason} | ${new Date(r.rotated_at * 1000).toLocaleString()}
+                </div>
+              `).join('')}
+            </div>` : ''
+
+          const statusBadgeClass = n.status === 'ACTIVE' ? 'badge-active' : n.status === 'MAINTENANCE' ? 'badge-warning' : 'badge-revoked'
+          let changeBadge = ''
+          if (isDraft && prevNodeIds !== null) {
+            // prevNodeIds is an array of node_id strings from the published version
+            const prevNodes = currentDoc ? docNodes(currentDoc) : []
+            const prevNode = prevNodes.find(p => p.node_id === n.node_id)
+            if (!prevNodeIds.includes(n.node_id)) {
+              changeBadge = ' <span class="badge badge-ok">NEW</span>'
+            } else if (prevNode && (prevNode.status !== n.status || prevNode.ik_pub !== n.ik_pub || prevNode.ek_pub !== n.ek_pub)) {
+              changeBadge = ' <span class="badge badge-warning">MODIFIED</span>'
+            }
+          } else if (isDraft && prevNodeIds === null) {
+            // No published doc — all nodes in genesis are NEW
+            changeBadge = ' <span class="badge badge-ok">NEW</span>'
+          }
+
+          const actions = []
+          if (n.status === 'ACTIVE' || n.status === 'MAINTENANCE') {
+            actions.push(`<button class="danger" onclick="openRevokeModal('${n.node_id}')">Revoke</button>`)
+          }
+          if (n.status === 'ACTIVE') {
+            actions.push(`<button class="warning-btn" onclick="openMaintenanceModal('${n.node_id}')">Maintenance</button>`)
+          }
+          if (n.status === 'MAINTENANCE') {
+            actions.push(`<button onclick="openReactivateModal('${n.node_id}')">Reactivate</button>`)
+          }
+          if (n.status === 'ACTIVE' || n.status === 'MAINTENANCE') {
+            actions.push(`<button class="purple" onclick="openRotateIkModal('${n.node_id}')">Rotate IK</button>`)
+          }
+
+          const enrolledAt = n.enrolled_at ? `<div style="font-size:0.75rem; color:#8b949e; margin-top:0.25rem;">Enrolled: ${new Date(n.enrolled_at * 1000).toLocaleString()}</div>` : ''
+
+          return `
+          <div class="node-item">
+            <div><strong>${n.role}</strong> <span class="badge ${statusBadgeClass}">${n.status}</span>${changeBadge}</div>
+            <div class="mono" style="margin-top:0.25rem; font-size:0.75rem;">ID: ${n.node_id}</div>
+            <div class="mono" style="font-size:0.75rem; word-break:break-all;">ikPub: ${n.ik_pub}</div>
+            <div class="mono" style="font-size:0.75rem; word-break:break-all;">ekPub: ${n.ek_pub}</div>
+            ${enrolledAt}
+            ${rotationHtml}
+            ${actions.length ? `<div class="node-actions">${actions.join('')}</div>` : ''}
+          </div>`
+        }).join('')
+    }
+
+    // ── Governance Role Management ────────────────────────────────────────
+    function addGovAddrInput() {
+      const container = document.getElementById('gov-addr-inputs')
+      const count = container.querySelectorAll('.gov-addr-input').length
+      const div = document.createElement('div')
+      div.className = 'form-group'
+      div.innerHTML = `<label>Address ${count}</label><input class="gov-addr-input" placeholder="0x...">`
+      container.appendChild(div)
+    }
+
+    async function proposeGovernanceRole() {
+      const role = document.getElementById('gov-role-name').value
+      const display_name = document.getElementById('gov-display-name').value.trim()
+      const inputs = document.querySelectorAll('.gov-addr-input')
+      const addresses = Array.from(inputs).map(el => el.value.trim()).filter(Boolean)
+      const quorum = parseInt(document.getElementById('gov-quorum').value, 10)
+      const featuresRaw = document.getElementById('gov-features').value.trim()
+      const features = featuresRaw ? featuresRaw.split(',').map(s => s.trim()).filter(Boolean) : undefined
+
+      if (!role || !display_name) {
+        showMsg('governance-msg', 'Role and display name are required', false); return
+      }
+      if (addresses.length < 1) {
+        showMsg('governance-msg', 'At least one address is required', false); return
+      }
+      if (isNaN(quorum) || quorum < 1) {
+        showMsg('governance-msg', 'Quorum must be >= 1', false); return
+      }
+
+      const body = { role, display_name, addresses, quorum }
+      if (features) body.features = features
+
+      try {
+        const res = await fetch(`${API}/governance/role`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('governance-msg', 'Governance role proposed! Draft created (v' + docVersion(result) + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('governance-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('governance-msg', e.message, false) }
+    }
+
+    // ── Ceremony Config ───────────────────────────────────────────────────
+    async function proposeCeremonyConfig() {
+      const allowed_curves = document.getElementById('cc-curves').value.split(',').map(s => s.trim()).filter(Boolean)
+      const allowed_protocols = document.getElementById('cc-protocols').value.split(',').map(s => s.trim()).filter(Boolean)
+      const global_threshold_t = parseInt(document.getElementById('cc-global-threshold').value, 10)
+      const max_participants_n = parseInt(document.getElementById('cc-max-participants').value, 10)
+      if (!allowed_curves.length || !allowed_protocols.length) {
+        showMsg('ceremony-config-msg', 'Curves and protocols are required', false); return
+      }
+      if (isNaN(global_threshold_t) || global_threshold_t < 2) {
+        showMsg('ceremony-config-msg', 'Global threshold must be >= 2', false); return
+      }
+      if (isNaN(max_participants_n) || max_participants_n < 2) {
+        showMsg('ceremony-config-msg', 'Max participants must be >= 2', false); return
+      }
+      try {
+        const res = await fetch(`${API}/ceremony-config/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ global_threshold_t, max_participants_n, allowed_protocols, allowed_curves }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('ceremony-config-msg', 'Ceremony config proposed! Draft created (v' + docVersion(result) + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('ceremony-config-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('ceremony-config-msg', e.message, false) }
+    }
+
+    // ── Trusted Infrastructure ────────────────────────────────────────────
+    function addInfraHashInput() {
+      const container = document.getElementById('infra-hash-inputs')
+      const count = container.querySelectorAll('.infra-hash-input').length
+      const div = document.createElement('div')
+      div.className = 'form-group'
+      div.innerHTML = `<label>Trusted Binary Hash ${count}</label><input class="infra-hash-input" placeholder="sha256 hex hash">`
+      container.appendChild(div)
+    }
+
+    async function proposeInfrastructure() {
+      const backoffice_pubkey = document.getElementById('infra-backoffice').value.trim() || undefined
+      const market_oracle_pubkey = document.getElementById('infra-oracle').value.trim() || undefined
+      const hashInputs = document.querySelectorAll('.infra-hash-input')
+      const trusted_binary_hashes = Array.from(hashInputs).map(el => el.value.trim()).filter(Boolean)
+
+      const body = {}
+      if (backoffice_pubkey) body.backoffice_pubkey = backoffice_pubkey
+      if (market_oracle_pubkey) body.market_oracle_pubkey = market_oracle_pubkey
+      if (trusted_binary_hashes.length) body.trusted_binary_hashes = trusted_binary_hashes
+
+      try {
+        const res = await fetch(`${API}/infrastructure/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('infrastructure-msg', 'Infrastructure proposed! Draft created (v' + docVersion(result) + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('infrastructure-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('infrastructure-msg', e.message, false) }
+    }
+
+    // ── Immutable Policies ────────────────────────────────────────────────
+    async function proposeImmutablePolicies() {
+      const max_withdrawal_usd_24h = parseFloat(document.getElementById('policy-max-withdrawal').value)
+      const require_oracle_price = document.getElementById('policy-require-oracle').checked
+      const enforce_whitelist = document.getElementById('policy-enforce-whitelist').checked
+
+      if (isNaN(max_withdrawal_usd_24h) || max_withdrawal_usd_24h < 0) {
+        showMsg('immutable-policies-msg', 'Max withdrawal must be a non-negative number', false); return
+      }
+
+      try {
+        const res = await fetch(`${API}/immutable-policies/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ max_withdrawal_usd_24h, require_oracle_price, enforce_whitelist }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('immutable-policies-msg', 'Immutable policies proposed! Draft created (v' + docVersion(result) + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('immutable-policies-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('immutable-policies-msg', e.message, false) }
+    }
+
+    // ── Endpoints Proposal ─────────────────────────────────────────────────
+    function addMirrorInput() {
+      const container = document.getElementById('mirror-inputs')
+      const count = container.querySelectorAll('.mirror-url-input').length
+      const div = document.createElement('div')
+      div.className = 'form-group'
+      div.innerHTML = `<label>Mirror ${count}</label><input class="mirror-url-input" placeholder="https://...">`
+      container.appendChild(div)
+    }
+
+    async function proposeEndpoints() {
+      const primary = document.getElementById('propose-primary-url').value.trim()
+      if (!primary) {
+        showMsg('endpoints-msg', 'Primary URL is required', false); return
+      }
+      const mirrorInputs = document.querySelectorAll('.mirror-url-input')
+      const mirrors = Array.from(mirrorInputs).map(el => el.value.trim()).filter(Boolean)
+      try {
+        const res = await fetch(`${API}/endpoints/propose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ primary, mirrors }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('endpoints-msg', 'Endpoints proposed! Draft created (v' + docVersion(result) + '). Go to Sign & Publish tab to sign.', true)
+          showDraftInfo()
+        } else {
+          showMsg('endpoints-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('endpoints-msg', e.message, false) }
+    }
+
+    // ── Sign Tab: Fetch Draft ─────────────────────────────────────────────
+    async function fetchDraftForSign() {
+      try {
+        const res = await fetch(`${API}/pending`)
+        if (!res.ok) {
+          const err = await res.json()
+          alert(err.message || 'No pending draft')
+          return
+        }
+        draft = await res.json()
+        document.getElementById('draft-registry').textContent = docRegistryId(draft)
+        document.getElementById('draft-version').textContent = 'v' + docVersion(draft)
+        document.getElementById('draft-nodes-count').textContent = docNodes(draft).length + ' node(s)'
+        document.getElementById('draft-governance').innerHTML = renderGovernanceRoles(docGovernanceRoles(draft))
+        document.getElementById('draft-ceremony-config').innerHTML = renderCeremonyConfig(docCeremonyConfig(draft))
+        document.getElementById('draft-endpoints').innerHTML = renderEndpoints(docEndpoints(draft))
+        document.getElementById('draft-hash').textContent = docDocumentHash(draft)
+        document.getElementById('draft-merkle').textContent = docMerkleRoot(draft)
+        document.getElementById('sign-draft-info').classList.remove('hidden')
+        document.getElementById('sec-sign-draft').classList.add('done')
+        document.getElementById('btn-sign').disabled = false
+        populateSignRoleDropdown()
+        updateSigStatus()
+      } catch (e) { alert(e.message) }
+    }
+
+    function populateSignRoleDropdown() {
+      const select = document.getElementById('sign-role-select')
+      select.innerHTML = ''
+      if (!account || !draft) {
+        select.innerHTML = '<option value="">-- connect wallet and fetch draft first --</option>'
+        select.disabled = true
+        return
+      }
+
+      // Use PREVIOUS version's roles for signing (chain-of-trust).
+      // For genesis (no published doc), use the draft's own roles.
+      const isGenesis = docVersion(draft) === 1 && !currentDoc
+      const signingRoles = isGenesis ? docGovernanceRoles(draft) : (currentDoc ? docGovernanceRoles(currentDoc) : docGovernanceRoles(draft))
+      const lower = account.toLowerCase()
+      const myRoles = signingRoles.filter(r =>
+        r.addresses && r.addresses.some(a => a.toLowerCase() === lower)
+      )
+
+      if (myRoles.length === 0) {
+        select.innerHTML = '<option value="">-- wallet not in any governance role --</option>'
+        select.disabled = true
+        return
+      }
+
+      myRoles.forEach(r => {
+        const opt = document.createElement('option')
+        opt.value = r.role
+        opt.textContent = `${r.role} (${r.display_name || r.role})`
+        select.appendChild(opt)
+      })
+      select.disabled = false
+    }
+
+    // ── Sign Tab: Sign ────────────────────────────────────────────────────
+    async function signDoc() {
+      if (!account || !draft) return
+      const selectedRole = document.getElementById('sign-role-select').value
+      if (!selectedRole) {
+        alert('Please select a role to sign as'); return
+      }
+      try {
+        // Fetch the EIP-712 typed data payload from the server
+        const msgRes = await fetch(`${API}/pending/message`)
+        if (!msgRes.ok) { alert('Failed to fetch sign payload from server'); return }
+        const payload = await msgRes.json()
+
+        // EIP-712: MetaMask shows structured, labeled fields
+        const typedData = JSON.stringify({
+          types: { EIP712Domain: [{ name: 'name', type: 'string' }, { name: 'version', type: 'string' }], ...payload.types },
+          domain: payload.domain,
+          primaryType: payload.primaryType,
+          message: payload.message,
+        })
+
+        signature = await window.ethereum.request({
+          method: 'eth_signTypedData_v4',
+          params: [account, typedData],
+        })
+
+        document.getElementById('sign-result').textContent = signature
+        document.getElementById('sign-info').classList.remove('hidden')
+        document.getElementById('sec-sign').classList.add('done')
+        document.getElementById('btn-submit').disabled = false
+      } catch (e) { alert('Signing failed: ' + e.message) }
+    }
+
+    // ── Sign Tab: Submit ──────────────────────────────────────────────────
+    async function submitSig() {
+      if (!signature || !draft || !account) return
+      const selectedRole = document.getElementById('sign-role-select').value
+      if (!selectedRole) {
+        alert('Please select a role'); return
+      }
+      try {
+        const res = await fetch(`${API}/pending/sign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            role: selectedRole,
+            signer: account,
+            signature: signature,
+            document_hash: docDocumentHash(draft),
+          }),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          draft = result
+          showMsg('submit-msg', 'Signature accepted!', true)
+          document.getElementById('sec-submit').classList.add('done')
+          document.getElementById('btn-submit').disabled = true
+          // Re-enable sign for next signer
+          document.getElementById('btn-sign').disabled = false
+          signature = null
+          document.getElementById('sign-info').classList.add('hidden')
+          document.getElementById('sec-sign').classList.remove('done')
+          updateSigStatus()
+        } else {
+          showMsg('submit-msg', result.message || 'Rejected', false)
+        }
+      } catch (e) { showMsg('submit-msg', e.message, false) }
+    }
+
+    // ── Sign Tab: Verify & Publish ────────────────────────────────────────
+    async function verifyDoc() {
+      if (!draft) return
+      try {
+        const res = await fetch(`${API}/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draft),
+        })
+        const result = await res.json()
+        const el = document.getElementById('verify-result')
+        document.getElementById('verify-info').classList.remove('hidden')
+
+        const stepsHtml = result.steps.map(s =>
+          `<div style="margin-top:0.25rem;">${s.passed ? '<span class="success">PASS</span>' : '<span class="error-text">FAIL</span>'} <strong>${s.step}</strong>: ${s.detail}</div>`
+        ).join('')
+
+        if (result.valid) {
+          el.innerHTML = '<span class="success">All verification steps passed!</span><div style="margin-top:0.75rem;">' + stepsHtml + '</div>'
+          document.getElementById('btn-publish').disabled = false
+        } else {
+          el.innerHTML = '<span class="error-text">Verification failed</span><div style="margin-top:0.75rem;">' + stepsHtml + '</div>'
+        }
+      } catch (e) { alert('Verify failed: ' + e.message) }
+    }
+
+    async function publishDoc() {
+      if (!draft) return
+      if (!confirm('Publish this document? This will make it the active registry version.')) return
+      try {
+        const res = await fetch(`${API}/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(draft),
+        })
+        const result = await res.json()
+        if (res.ok) {
+          const ver = docVersion(result) || result.version
+          showMsg('publish-msg', 'Published! Version ' + ver + ' is now active.', true)
+          document.getElementById('btn-publish').disabled = true
+          document.getElementById('btn-verify').disabled = true
+          document.getElementById('sec-publish').classList.add('done')
+          draft = null
+          loadCurrent()
+        } else {
+          showMsg('publish-msg', result.message || 'Failed', false)
+        }
+      } catch (e) { showMsg('publish-msg', e.message, false) }
+    }
+
+    // ── Signature Status (role-based quorum) ──────────────────────────────
+    function renderSignatureQuorum(sigs, roles) {
+      if (!roles || !roles.length) {
+        return sigs.length + ' signature(s)'
+      }
+      // Group signatures by role
+      const byRole = {}
+      roles.forEach(r => { byRole[r.role] = { quorum: r.quorum, sigs: [] } })
+      sigs.forEach(s => {
+        const role = s.role || 'UNKNOWN'
+        if (!byRole[role]) byRole[role] = { quorum: '?', sigs: [] }
+        byRole[role].sigs.push(s)
+      })
+      return Object.entries(byRole).map(([role, data]) => {
+        const count = data.sigs.length
+        const quorum = data.quorum
+        const met = typeof quorum === 'number' && count >= quorum
+        return `<div style="margin-top:0.25rem;">
+          <span class="${met ? 'success' : 'warning'}">${role}: ${count}/${quorum}</span>
+        </div>`
+      }).join('')
+    }
+
+    function updateSigStatus() {
+      if (!draft) return
+      const statusEl = document.getElementById('sig-status')
+      const listEl = document.getElementById('sig-list')
+      const sigs = docSignatures(draft)
+      // Quorum check uses the PREVIOUS version's roles (from published doc), not the draft's.
+      // For genesis (v1, no published doc), use the draft's own roles.
+      const isGenesis = docVersion(draft) === 1 && !currentDoc
+      const roles = isGenesis ? docGovernanceRoles(draft) : (currentDoc ? docGovernanceRoles(currentDoc) : docGovernanceRoles(draft))
+
+      // Check quorum per role
+      const byRole = {}
+      roles.forEach(r => { byRole[r.role] = { quorum: r.quorum, count: 0 } })
+      sigs.forEach(s => {
+        const role = s.role || 'UNKNOWN'
+        if (!byRole[role]) byRole[role] = { quorum: '?', count: 0 }
+        byRole[role].count++
+      })
+
+      const allMet = roles.every(r => {
+        const data = byRole[r.role]
+        return data && data.count >= r.quorum
+      })
+
+      // Build quorum summary
+      let quorumHtml = Object.entries(byRole).map(([role, data]) => {
+        const met = typeof data.quorum === 'number' && data.count >= data.quorum
+        return `<span class="${met ? 'success' : 'warning'}" style="margin-right:1rem;">${role}: ${data.count}/${data.quorum}</span>`
+      }).join('')
+
+      if (allMet && roles.length > 0) {
+        statusEl.innerHTML = `<div><span class="success">All quorums met -- ready to publish!</span></div><div style="margin-top:0.5rem;">${quorumHtml}</div>`
+        document.getElementById('btn-verify').disabled = false
+      } else {
+        statusEl.innerHTML = `<div><span class="warning">Quorum not yet met</span></div><div style="margin-top:0.5rem;">${quorumHtml}</div>`
+        document.getElementById('btn-verify').disabled = true
+      }
+
+      // List signatures grouped by role
+      const grouped = {}
+      sigs.forEach(s => {
+        const role = s.role || 'UNKNOWN'
+        if (!grouped[role]) grouped[role] = []
+        grouped[role].push(s)
+      })
+
+      listEl.innerHTML = Object.entries(grouped).map(([role, roleSigs]) => {
+        const items = roleSigs.map(s =>
+          `<div class="sig-item">
+            <span class="addr">${s.signer}</span>
+            <span class="badge badge-ok">signed</span>
+            <span class="badge badge-role">${role}</span>
+            <div style="margin-top:0.25rem; color:#8b949e; font-size:0.75rem;">${s.signature.substring(0, 42)}...</div>
+          </div>`
+        ).join('')
+        return `<div style="margin-top:0.75rem;"><strong style="color:#a371f7;">${role}</strong>${items}</div>`
+      }).join('')
+    }
+
+    // ── JSON Preview ─────────────────────────────────────────────────────
+    function syntaxHighlight(text) {
+      return text.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+        let cls = 'json-number'
+        if (/^"/.test(match)) {
+          cls = /:$/.test(match) ? 'json-key' : 'json-string'
+        } else if (/true|false/.test(match)) {
+          cls = 'json-bool'
+        } else if (/null/.test(match)) {
+          cls = 'json-null'
+        }
+        return '<span class="' + cls + '">' + match + '</span>'
+      })
+    }
+
+    function computeJsonDiff(oldLines, newLines) {
+      // Simple line-based diff: match lines, mark added/removed/unchanged
+      const result = []
+      const oldSet = new Map()
+      oldLines.forEach((l, i) => { if (!oldSet.has(l)) oldSet.set(l, []);  oldSet.get(l).push(i) })
+
+      let oi = 0, ni = 0
+      while (oi < oldLines.length || ni < newLines.length) {
+        if (oi < oldLines.length && ni < newLines.length && oldLines[oi] === newLines[ni]) {
+          result.push({ type: 'unchanged', text: newLines[ni] })
+          oi++; ni++
+        } else {
+          // Look ahead to find next matching line
+          let foundOld = -1, foundNew = -1
+          for (let k = 1; k <= 10; k++) {
+            if (foundNew === -1 && ni + k < newLines.length && oi < oldLines.length && oldLines[oi] === newLines[ni + k]) foundNew = k
+            if (foundOld === -1 && oi + k < oldLines.length && ni < newLines.length && newLines[ni] === oldLines[oi + k]) foundOld = k
+          }
+
+          if (foundOld !== -1 && (foundNew === -1 || foundOld <= foundNew)) {
+            // Old lines were removed
+            for (let k = 0; k < foundOld; k++) {
+              result.push({ type: 'removed', text: oldLines[oi++] })
+            }
+          } else if (foundNew !== -1) {
+            // New lines were added
+            for (let k = 0; k < foundNew; k++) {
+              result.push({ type: 'added', text: newLines[ni++] })
+            }
+          } else {
+            // No match found nearby — show as remove old + add new
+            if (oi < oldLines.length) result.push({ type: 'removed', text: oldLines[oi++] })
+            if (ni < newLines.length) result.push({ type: 'added', text: newLines[ni++] })
+          }
+        }
+      }
+      return result
+    }
+
+    function stripSignatures(doc) {
+      if (!doc) return doc
+      const { signatures, ...rest } = doc
+      return rest
+    }
+
+    function updateJsonPreview() {
+      const el = document.getElementById('json-preview')
+      const label = document.getElementById('json-preview-label')
+      const diffEnabled = document.getElementById('diff-highlight-toggle').checked
+      const doc = stripSignatures(draft || currentDoc)
+      if (!doc) {
+        el.innerHTML = '<div class="diff-line diff-unchanged" style="padding:0.75rem;color:#8b949e;">No document loaded</div>'
+        label.textContent = 'No document'
+        return
+      }
+
+      // Plain JSON mode (no diff)
+      if (!diffEnabled || !draft || !currentDoc) {
+        if (draft) {
+          label.innerHTML = 'Showing: <span class="warning">pending draft v' + docVersion(draft) + '</span>'
+        } else {
+          label.innerHTML = 'Showing: <span class="success">published v' + docVersion(currentDoc) + '</span>'
+        }
+        const json = JSON.stringify(doc, null, 2)
+        el.innerHTML = json.split('\n').map(line =>
+          `<div class="diff-line diff-unchanged">  ${syntaxHighlight(line)}</div>`
+        ).join('')
+        return
+      }
+
+      // Diff mode: compare published vs draft
+      label.innerHTML = '<span class="error-text">- published v' + docVersion(currentDoc) + '</span> &nbsp; <span class="success">+ draft v' + docVersion(draft) + '</span>'
+
+      const oldJson = JSON.stringify(stripSignatures(currentDoc), null, 2)
+      const newJson = JSON.stringify(stripSignatures(draft), null, 2)
+      const oldLines = oldJson.split('\n')
+      const newLines = newJson.split('\n')
+      const diff = computeJsonDiff(oldLines, newLines)
+
+      let addCount = diff.filter(d => d.type === 'added').length
+      let removeCount = diff.filter(d => d.type === 'removed').length
+
+      let html = `<div class="diff-section">${addCount} addition(s), ${removeCount} deletion(s)</div>`
+      html += diff.map(d => {
+        const prefix = d.type === 'added' ? '+' : d.type === 'removed' ? '-' : ' '
+        const cls = d.type === 'added' ? 'diff-added' : d.type === 'removed' ? 'diff-removed' : 'diff-unchanged'
+        return `<div class="diff-line ${cls}">${prefix} ${syntaxHighlight(d.text)}</div>`
+      }).join('')
+
+      el.innerHTML = html
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+    function showMsg(id, text, success) {
+      const el = document.getElementById(id)
+      el.innerHTML = `<div class="msg ${success ? 'msg-success' : 'msg-error'}">${success ? '<span class="success">' : '<span class="error-text">'}${text}</span></div>`
+      setTimeout(() => { if (el.querySelector('.msg')) el.innerHTML = '' }, 8000)
+    }
+
+    // ── Version History ─────────────────────────────────────────────────
+    async function loadVersionHistory() {
+      const container = document.getElementById('version-list')
+      try {
+        const res = await fetch(`${API}/versions`)
+        if (!res.ok) { container.innerHTML = '<span class="error-text">No version history available</span>'; return }
+        const versions = await res.json()
+        if (!versions.length) {
+          container.innerHTML = '<span style="color:#8b949e;">No version files found</span>'
+          return
+        }
+        container.innerHTML = versions.map(v =>
+          `<div class="node-item" style="cursor:pointer;" onclick="document.getElementById('version-number').value=${v}; loadVersionDetail();">
+            <strong>v${v}</strong>
+          </div>`
+        ).join('')
+      } catch (e) {
+        container.innerHTML = '<span class="error-text">' + e.message + '</span>'
+      }
+    }
+
+    async function loadVersionDetail() {
+      const v = parseInt(document.getElementById('version-number').value, 10)
+      if (!v || v < 1) return
+      const el = document.getElementById('version-detail')
+      try {
+        const res = await fetch(`${API}/versions/${v}`)
+        if (!res.ok) { el.innerHTML = '<span class="error-text">Version not found</span>'; el.classList.remove('hidden'); return }
+        const doc = await res.json()
+        const expiresAt = docExpiresAt(doc)
+        const expired = Date.now() / 1000 > expiresAt
+        const roles = docGovernanceRoles(doc)
+        const cc = docCeremonyConfig(doc)
+        const infra = docInfrastructure(doc)
+        const pol = docImmutablePolicies(doc)
+        const sigs = docSignatures(doc)
+        const nodes = docNodes(doc)
+
+        el.innerHTML = `
+          <label>Version</label><div class="value">v${docVersion(doc)}</div>
+          <label style="margin-top:0.5rem;">Issued</label><div class="value">${new Date(docIssuedAt(doc) * 1000).toLocaleString()}</div>
+          <label style="margin-top:0.5rem;">Expires</label><div class="value">${new Date(expiresAt * 1000).toLocaleString()} ${expired ? '<span class="error-text">(expired)</span>' : '<span class="success">(valid)</span>'}</div>
+          <label style="margin-top:0.5rem;">Nodes</label><div class="value">${nodes.length} (${nodes.filter(n => n.status === 'ACTIVE').length} active)</div>
+          <label style="margin-top:0.5rem;">Governance Roles</label><div class="value">${renderGovernanceRoles(roles)}</div>
+          <label style="margin-top:0.5rem;">Ceremony Config</label><div class="value">${renderCeremonyConfig(cc)}</div>
+          <label style="margin-top:0.5rem;">Trusted Infrastructure</label><div class="value">${renderInfrastructure(infra)}</div>
+          <label style="margin-top:0.5rem;">Immutable Policies</label><div class="value">${renderImmutablePolicies(pol)}</div>
+          <label style="margin-top:0.5rem;">Document Hash</label><div class="value mono" style="font-size:0.75rem;">${docDocumentHash(doc)}</div>
+          <label style="margin-top:0.5rem;">Prev Document Hash</label><div class="value mono" style="font-size:0.75rem;">${docPrevDocumentHash(doc) ?? 'null (genesis)'}</div>
+          <label style="margin-top:0.5rem;">Merkle Root</label><div class="value mono" style="font-size:0.75rem;">${docMerkleRoot(doc)}</div>
+          <label style="margin-top:0.5rem;">Signatures</label><div class="value">${renderSignatureQuorum(sigs, roles)}
+            ${sigs.map(s => `<div class="sig-item"><span class="badge badge-role">${s.role}</span> <span class="mono" style="font-size:0.75rem;">${s.signer}</span></div>`).join('')}
+          </div>
+        `
+        el.classList.remove('hidden')
+      } catch (e) {
+        el.innerHTML = '<span class="error-text">' + e.message + '</span>'
+        el.classList.remove('hidden')
+      }
+    }
+
+    async function verifyChain() {
+      const container = document.getElementById('chain-result')
+      container.innerHTML = '<span style="color:#8b949e;">Verifying...</span>'
+      try {
+        const res = await fetch(`${API}/versions`)
+        if (!res.ok) { container.innerHTML = '<span class="error-text">Cannot fetch version list</span>'; return }
+        const versions = await res.json()
+        if (versions.length < 2) {
+          container.innerHTML = '<span style="color:#8b949e;">Need at least 2 versions to verify chain</span>'
+          return
+        }
+
+        let html = ''
+        let allOk = true
+        for (let i = 1; i < versions.length; i++) {
+          const prevV = versions[i - 1]
+          const currV = versions[i]
+          const [prevRes, currRes] = await Promise.all([
+            fetch(`${API}/versions/${prevV}`),
+            fetch(`${API}/versions/${currV}`),
+          ])
+          if (!prevRes.ok || !currRes.ok) {
+            html += `<div class="node-item"><span class="error-text">Failed to fetch v${prevV} or v${currV}</span></div>`
+            allOk = false
+            continue
+          }
+          const prevDoc = await prevRes.json()
+          const currDoc = await currRes.json()
+
+          const prevHash = docDocumentHash(prevDoc)
+          const currPrevHash = docPrevDocumentHash(currDoc)
+          const prevVersion = docVersion(prevDoc)
+          const currVersion = docVersion(currDoc)
+
+          const hashMatch = currPrevHash === prevHash
+          const versionOk = currVersion === prevVersion + 1
+          const ok = hashMatch && versionOk
+
+          if (!ok) allOk = false
+          html += `<div class="node-item">
+            <strong>v${prevV} -> v${currV}</strong>
+            ${ok ? '<span class="badge badge-ok">OK</span>' : '<span class="badge badge-revoked">BROKEN</span>'}
+            ${!hashMatch ? '<div class="error-text" style="font-size:0.75rem;">Hash chain mismatch</div>' : ''}
+            ${!versionOk ? '<div class="error-text" style="font-size:0.75rem;">Version gap (expected v' + (prevVersion + 1) + ')</div>' : ''}
+          </div>`
+        }
+
+        const summary = allOk
+          ? `<div class="msg msg-success"><span class="success">Chain integrity verified across ${versions.length} versions</span></div>`
+          : `<div class="msg msg-error"><span class="error-text">Chain integrity issues detected</span></div>`
+        container.innerHTML = summary + html
+      } catch (e) {
+        container.innerHTML = '<span class="error-text">' + e.message + '</span>'
+      }
+    }
+  </script>
+</body>
+</html>

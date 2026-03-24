@@ -1,0 +1,68 @@
+{
+  "registry_metadata": {
+    "registry_id": "custody-wallet",
+    "version": 1,
+    "issued_at": 1774384896,
+    "expires_at": 1774989696,
+    "updated_at": "2026-03-24T20:41:36.879Z",
+    "document_hash": "8d3731179a217c73a546996bd355bc43ea5528245ae68fddc5fca37e8b9b7161",
+    "merkle_root": "2e1cfa82b035c26cbbbdae632cea070514eb8b773f616aaeaf668e2f0be8f10d",
+    "prev_document_hash": null,
+    "endpoints": null
+  },
+  "governance": {
+    "roles": [
+      {
+        "role": "SYSTEM_ADMIN",
+        "display_name": "System Administrators",
+        "addresses": [
+          "0x3f1707FDAF87eE42F9D53fE0Af2Fd96995a80059",
+          "0x9140c30772D963fe04f64D2c8d2454CF67A9Ab48",
+          "0x7C9f957De53D154320b2D0Bb4547B094FE372e47"
+        ],
+        "quorum": 2,
+        "features": {}
+      }
+    ]
+  },
+  "ceremony_config": {
+    "global_threshold_t": 2,
+    "max_participants_n": 9,
+    "allowed_protocols": [
+      "CGGMP21",
+      "FROST"
+    ],
+    "allowed_curves": [
+      "Secp256k1",
+      "Ed25519"
+    ]
+  },
+  "trusted_infrastructure": {
+    "backoffice_pubkey": null,
+    "market_oracle_pubkey": null,
+    "trusted_binary_hashes": []
+  },
+  "nodes": [],
+  "immutable_policies": {
+    "max_withdrawal_usd_24h": 50000,
+    "require_oracle_price": true,
+    "enforce_whitelist": true
+  },
+  "signatures": [
+    {
+      "role": "SYSTEM_ADMIN",
+      "signer": "0x7c9f957de53d154320b2d0bb4547b094fe372e47",
+      "signature": "0xdc3609091ab59eb3242633fab50847ef616047a22e1e1a38004a0436b1cd51c03b2489af1aa3e480393ff3a2a46da9e9cbce4ab7356d6d33cfa0b1d5291c68241c"
+    },
+    {
+      "role": "SYSTEM_ADMIN",
+      "signer": "0x9140c30772d963fe04f64d2c8d2454cf67a9ab48",
+      "signature": "0xb7df841f0d3d69b84dba8c951a745a6c41923d2a7f5b950bcf742652a70266f7286587b203eca59a7e6b173ff0e8e270e6a3cc3a9980d9db78fcb9b471fa8daa1b"
+    },
+    {
+      "role": "SYSTEM_ADMIN",
+      "signer": "0x3f1707fdaf87ee42f9d53fe0af2fd96995a80059",
+      "signature": "0x7e42eb868caea0ab1b786585c4a2043ad4a7e9988938834f0814e04b4741a742132fee0debdd4cb9775fb7bd22ef66e54c359452becc330f0faef3a54fb73bcd1b"
+    }
+  ]
+}
